@@ -21,6 +21,18 @@ const {
   tokensEqual,
 } = await import("../electron/main/mcp-control.ts");
 
+test("reviewed migration forwards only scan candidate identities to the existing importer", async () => {
+  const calls = [];
+  const controller = createMcpControlController({
+    channels: { sessionImportScan: "pi-desktop/session/importScan", sessionImportRun: "pi-desktop/session/importRun", providersCreate: "pi-desktop/providers/create", modelConfigImportRun: "pi-desktop/modelConfig/importRun" },
+    invoke: async (channel, args) => { calls.push({ channel, args }); return { imported: 1, skipped: 0, failed: 0 }; },
+  });
+  assert.deepEqual(controller.operations.map((op) => op.id), ["session/importScan", "session/importRun"]);
+  const candidates = [{ source: "pi", externalId: "fixture-session" }];
+  await controller.invoke({ operation: "session/importRun", args: [candidates] });
+  assert.deepEqual(calls, [{ channel: "pi-desktop/session/importRun", args: [candidates] }]);
+});
+
 test("the plugin and MCP paths share desktop operation validation", async () => {
   const calls = [];
   const controller = createMcpControlController({

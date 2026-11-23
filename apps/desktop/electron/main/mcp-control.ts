@@ -217,6 +217,7 @@ const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("sessionListRevisions", "session/listRevisions", "List transcript revisions.", "read", ["input"]),
   spec("sessionGetScratchPath", "session/getScratchPath", "Return a session scratch path.", "read", ["input"]),
   spec("sessionImportScan", "session/importScan", "Scan supported external session sources.", "read", []),
+  spec("sessionImportRun", "session/importRun", "Import only candidates returned by the latest session scan; existing sessions are preserved.", "write", ["candidates"]),
   spec("modelConfigImportScan", "modelConfig/importScan", "Scan supported model configuration sources.", "read", []),
   spec("settingsGet", "settings/get", "Read application settings.", "read", []),
   spec("networkProxyTest", "network/testProxy", "Test a network proxy configuration.", "read", ["settings"]),

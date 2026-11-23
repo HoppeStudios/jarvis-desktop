@@ -39,6 +39,7 @@ import type { HostProcess } from "../host-process";
 import type { Logger } from "../logger";
 import type { PluginRuntime } from "../plugin-runtime";
 import { runSessionListProbe } from "../session-list-probe";
+import { applyInstallSetup } from "../install-setup";
 import {
   ensureCrashDumpsDirectory,
   reportPreviousCrashDumps,
@@ -396,6 +397,11 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
           }),
         });
       }
+    }
+    // Only a launcher/installer can opt into this one-shot local setup file.
+    // It uses normal validated handlers and never exposes settings writes over MCP.
+    if (process.env.PI_DESKTOP_INSTALL_SETUP) {
+      await applyInstallSetup(process.env.PI_DESKTOP_INSTALL_SETUP, invokeIpc);
     }
     await ensureWindow();
     if (process.env.PI_DESKTOP_MCP_CONTROL === "1") {

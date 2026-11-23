@@ -1179,6 +1179,9 @@ Minimal interface:
   scratch root.
 - `session/importScan -> { sessions, truncated? }`
 - `session/importRun(candidates) -> { imported, skipped, failed }`
+    The opt-in loopback MCP control catalog exposes this existing write path.
+    It accepts only identities from the latest scan and preserves existing
+    imports; it does not accept client-supplied file paths or transcript data.
 - `modelConfig/importScan -> { providers }`
 - `modelConfig/importRun(candidates) -> { imported, skipped, failed }`
 

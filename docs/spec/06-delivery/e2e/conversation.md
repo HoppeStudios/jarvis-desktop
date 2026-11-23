@@ -1,5 +1,23 @@
 # E2E Scenarios: Conversation and Sessions
 
+## E2E-JARVIS-reviewed-history-import
+
+Enable the loopback MCP control endpoint in an isolated profile. Scan external
+sessions, import returned candidate identities through `session/importRun`, and
+verify the durable title and transcript after reopening. Repeat the import and
+verify it is skipped rather than duplicated. An identity absent from the latest
+scan must fail without a database write. Provider/OAuth/settings write channels
+remain absent from the MCP catalog. Imported tool activity is historical data,
+never replayed as an execution request.
+
+The explicit launch-time `PI_DESKTOP_PI_IMPORT_DIR` archive is discoverable
+without making it a live native session root. Historical `codex-history`
+custom messages survive import as inert text. During an authorized installation,
+the curated `PI_DESKTOP_INSTALL_SETUP` path applies normal validated settings
+and MCP imports, preserves disabled integrations, rejects credentials and writes
+a success receipt only after completion. External settings/OAuth/secret-write
+MCP exclusions remain unchanged.
+
 ## E2E-stop-navigation-running-state
 
 Hold the history read after a successful local Stop, switch to another running session, then resolve the older session's history. Verify only the stopped session is settled, the new transcript remains and its toolbar still offers Stop. Also navigate synchronously during the hydration commit to exercise the final state writer. Coverage: `stop-navigation-running-state.test.mjs`, related smart-stop/terminal regressions, and `scripts/e2e-stop-navigation-running-state.mjs` using the production store and ComposerToolbar in Electron.

@@ -39,3 +39,12 @@ additive project and selection fields, while reads do not refresh the desktop.
 - The endpoint grants the authority of the running desktop; loopback binding,
   opt-in startup, bearer authentication, and confirmation gates limit accidental
   exposure but not a process that can already read the token.
+
+## Amendment: bounded history migration
+
+The reviewed write operation `session/importRun(candidates)` reuses the same
+import handler as the desktop. Only identities returned by the most recent
+`session/importScan` are accepted. The client cannot supply a file path,
+transcript, provider credential or database record. Existing imported session
+identities are skipped. This does not expose model configuration imports,
+provider/OAuth writes or arbitrary settings writes.
