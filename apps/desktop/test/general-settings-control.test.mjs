@@ -24,12 +24,12 @@ function harness(refuse=false) {
  const handlers=new Map();const calls=[];let saved={defaultMode:"agent",liveVoice:{enabled:true,bindings:[]}};
  registerSettingsIpc({registrar:{handle:(channel,fn)=>handlers.set(channel,fn)},getHost:()=>({call:async(method,params)=>{
    calls.push(method);if(method==="settings.get")return saved;
-   if(method==="settings.set"){saved={...saved,...params};return saved;}
+   if(method==="settings.set"){saved={...saved,...params};return {ok:true};}
    throw Error("Unexpected host request");
  }}),getSidecar:()=>null,dataDir:"fixture",normalizeSettings:v=>v,validateSettingsWrite:v=>v,
  testNetworkProxy:async()=>{},applyNetworkProxyFromAppSettings:async()=>{},currentNetworkProxy:()=>null,
  applyApplicationMenuSettings:()=>{},applyDeveloperMode:()=>{},applyPreventScreenSleep:()=>{},applyKeepAwakeWhileRunning:()=>{},applyUpdatePreference:()=>{},resolveEffectiveCommandShell:async()=>{},
- liveCallService:{beginSettingsWrite:()=>{calls.push("voice-guard");if(refuse)throw Error("call guard refused");return()=>calls.push("release");},settingsWritten:async()=>calls.push("voice-written")}});
+ liveCallService:{beginSettingsWrite:()=>{calls.push("voice-guard");if(refuse)throw Error("call guard refused");return()=>calls.push("release");},settingsWritten:async(settings)=>{assert.equal(settings.liveVoice.enabled,true);calls.push("voice-written");}}});
  return {handlers,calls};
 }
 
@@ -42,7 +42,7 @@ test("MCP general preferences preserve live voice settings and normal guard orde
  await assert.rejects(()=>controller.invoke({operation:"settings/configureGeneral",args:[{defaultPermissionMode:"auto"}]}),e=>e.code==="CONFIRMATION_REQUIRED");
  const value=await controller.invoke({operation:"settings/configureGeneral",args:[{defaultModelId:"gpt-6.1-sol",defaultPermissionMode:"auto"}],confirm:true});
  assert.equal(value.defaultModelId,"gpt-6.1-sol");assert.equal(value.defaultPermissionMode,"auto");assert.equal(value.liveVoice.enabled,true);
- assert.deepEqual(calls,["settings.get","voice-guard","settings.set","voice-written","release","settings.get"]);
+ assert.deepEqual(calls,["settings.get","voice-guard","settings.set","settings.get","voice-written","release"]);
  assert.deepEqual(mcpControlRendererEvent(controller.operations[0],value,[]),{reason:"mcp.settings"});
 });
 

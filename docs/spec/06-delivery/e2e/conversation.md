@@ -29,6 +29,11 @@ must propagate unchanged. Verify the stdio adapter discovers the same tools,
 preserves protocol refusals, rejects remote/redirected endpoints and closes its
 HTTP session when stdio closes. No global keyboard, cursor or clipboard input.
 
+The Host's real `settings.set` acknowledgement is `{ok:true}`. Verify that the
+normal settings apply path reads back `settings.get` before notifying the live
+call service or returning settings to the renderer; an acknowledgement must
+never be interpreted as disabled/missing voice configuration.
+
 ## E2E-stop-navigation-running-state
 
 Hold the history read after a successful local Stop, switch to another running session, then resolve the older session's history. Verify only the stopped session is settled, the new transcript remains and its toolbar still offers Stop. Also navigate synchronously during the hydration commit to exercise the final state writer. Coverage: `stop-navigation-running-state.test.mjs`, related smart-stop/terminal regressions, and `scripts/e2e-stop-navigation-running-state.mjs` using the production store and ComposerToolbar in Electron.

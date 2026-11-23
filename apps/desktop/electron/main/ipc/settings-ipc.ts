@@ -81,7 +81,10 @@ export function registerSettingsIpc({
     const releaseSettingsWrite = liveCallService?.beginSettingsWrite(prospectiveSettings);
     let result: AppSettings;
     try {
-      result = await host.call<AppSettings>("settings.set", validatedSettings);
+      // Host settings.set returns only {ok:true}; call state and the renderer
+      // need persisted settings, never that acknowledgement as a snapshot.
+      await host.call("settings.set", validatedSettings);
+      result = await host.call<AppSettings>("settings.get");
       await liveCallService?.settingsWritten(result);
     } finally {
       releaseSettingsWrite?.();
@@ -129,9 +132,7 @@ export function registerSettingsIpc({
   handle(IPC.invoke.settingsSet, applySettings);
   handle(IPC.invoke.settingsConfigureGeneral, async (settings: unknown) => {
     const patch = validateGeneralSettingsPatch(settings);
-    await applySettings(patch);
-    if (!host) throw new Error("host unavailable");
-    return normalizeSettings(await host.call("settings.get"));
+    return normalizeSettings(await applySettings(patch));
   });
 
   handle(IPC.invoke.commandShellList, async () => resolveEffectiveCommandShell());
