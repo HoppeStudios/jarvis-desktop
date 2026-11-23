@@ -5,6 +5,7 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { SESSION_COLLABORATION_OPERATIONS } from "./session-collaboration-control";
 import { markAutomationRequest } from "./runtime/user-message-provenance";
+import { validateGeneralSettingsPatch } from "./general-settings";
 
 /** A small JSON Schema subset used by MCP's tools/list response. */
 export type McpJsonSchema = {
@@ -220,6 +221,7 @@ const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("sessionImportRun", "session/importRun", "Import only candidates returned by the latest session scan; existing sessions are preserved.", "write", ["candidates"]),
   spec("modelConfigImportScan", "modelConfig/importScan", "Scan supported model configuration sources.", "read", []),
   spec("settingsGet", "settings/get", "Read application settings.", "read", []),
+  spec("settingsConfigureGeneral", "settings/configureGeneral", "Configure non-secret model defaults, permission preference and background/codemode preferences through normal settings guards.", "dangerous", ["patch"]),
   spec("networkProxyTest", "network/testProxy", "Test a network proxy configuration.", "read", ["settings"]),
   spec("commandShellList", "commandShell/list", "List supported command shells.", "read", []),
   spec("providersList", "providers/list", "List configured providers without plaintext secrets.", "read", []),
@@ -752,6 +754,7 @@ export function mcpControlRendererEvent(
   if (operation.id === "project/clear") {
     return { reason: "mcp.project", projectPath: null };
   }
+  if (operation.id === "settings/configureGeneral") return { reason: "mcp.settings" };
   if (SESSION_MUTATION_IDS.has(operation.id) || operation.id === "plans/resolve") {
     return { reason: "mcp.session" };
   }
@@ -801,6 +804,10 @@ export function createMcpControlController(options: {
         throw Object.assign(new Error(`confirm=true is required for ${operation.id}`), {
           code: "CONFIRMATION_REQUIRED",
         });
+      }
+      if (operation.id === "settings/configureGeneral") {
+        if (args.length !== 1) throw Object.assign(new Error("one settings patch is required"), { code: "INVALID_PARAMS" });
+        validateGeneralSettingsPatch(args[0]);
       }
       const sanitized = args.map((value) => stripSecretMaterial(value)) as unknown[];
       if (operation.id === "agent/prompt") markAutomationRequest(sanitized[0]);

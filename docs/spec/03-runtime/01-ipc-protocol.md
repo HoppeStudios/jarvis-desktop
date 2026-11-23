@@ -1,5 +1,18 @@
 # 01. IPC Protocol
 
+### Curated local general settings control
+
+`pi-desktop/settings/configureGeneral(patch)` accepts only existing provider/model
+IDs, builtin Agent/Plan default, global permission preference, update preference,
+codemode and background continuation. Values are strictly validated; raw settings,
+secret, OAuth, voice, network and computer-use writes remain excluded from this
+operation. It delegates to the same settings apply path and active-call guards,
+then returns normalized persisted settings. The MCP operation
+`settings/configureGeneral` requires `confirm: true` as an agent acknowledgement.
+This is additive and changes neither provider credentials nor operating-system
+rights. The reviewed stdio adapter forwards the existing loopback MCP protocol;
+it does not create a second app service or a provider/account store.
+
 ### Private native window snapping
 
 `window.enableNativeSnap` is Main-to-Host only: `{nativeHandle: string, ownerPid: number}`

@@ -6,7 +6,7 @@ Enable the loopback MCP control endpoint in an isolated profile. Scan external
 sessions, import returned candidate identities through `session/importRun`, and
 verify the durable title and transcript after reopening. Repeat the import and
 verify it is skipped rather than duplicated. An identity absent from the latest
-scan must fail without a database write. Provider/OAuth/settings write channels
+scan must fail without a database write. Provider/OAuth/raw-settings write channels
 remain absent from the MCP catalog. Imported tool activity is historical data,
 never replayed as an execution request.
 
@@ -16,7 +16,18 @@ custom messages survive import as inert text. During an authorized installation,
 the curated `PI_DESKTOP_INSTALL_SETUP` path applies normal validated settings
 and MCP imports, preserves disabled integrations, rejects credentials and writes
 a success receipt only after completion. External settings/OAuth/secret-write
-MCP exclusions remain unchanged.
+MCP exclusions remain unchanged for raw settings writes.
+
+## E2E-JARVIS-general-settings-control
+
+Use the loopback MCP operation `settings/configureGeneral` with its explicit
+agent acknowledgement. Set an existing model and current-user permission default,
+then verify persisted readback. Existing voice binding and unrelated preferences
+remain identical. Reject unknown fields, credentials, network/computer-use grants
+and voice bindings without a write. A normal active-call settings guard refusal
+must propagate unchanged. Verify the stdio adapter discovers the same tools,
+preserves protocol refusals, rejects remote/redirected endpoints and closes its
+HTTP session when stdio closes. No global keyboard, cursor or clipboard input.
 
 ## E2E-stop-navigation-running-state
 

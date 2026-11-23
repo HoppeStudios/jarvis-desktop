@@ -399,7 +399,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       }
     }
     // Only a launcher/installer can opt into this one-shot local setup file.
-    // It uses normal validated handlers and never exposes settings writes over MCP.
+    // It uses normal validated handlers and keeps credential setup outside MCP.
     if (process.env.PI_DESKTOP_INSTALL_SETUP) {
       await applyInstallSetup(process.env.PI_DESKTOP_INSTALL_SETUP, invokeIpc);
     }

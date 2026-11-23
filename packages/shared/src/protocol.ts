@@ -203,6 +203,7 @@ export const IPC = {
     projectOpenFolder: "pi-desktop/project/openFolder",
     settingsGet: "pi-desktop/settings/get",
     settingsSet: "pi-desktop/settings/set",
+    settingsConfigureGeneral: "pi-desktop/settings/configureGeneral",
     sidebarPreferencesGet: "pi-desktop/sidebar/preferences/get",
     sidebarPreferencesSet: "pi-desktop/sidebar/preferences/set",
     configSyncGetState: "pi-desktop/configSync/getState",

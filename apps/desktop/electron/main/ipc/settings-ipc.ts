@@ -5,6 +5,7 @@ import type { IpcRegistrar } from "./types";
 import type { LiveCallService } from "../live-voice/call-service";
 import type { AppSettings } from "@pi-desktop/shared";
 import { currentSystemProxyRelayUrl } from "../network-proxy";
+import { validateGeneralSettingsPatch } from "../general-settings";
 
 export type SettingsIpcDependencies = {
   registrar: IpcRegistrar;
@@ -70,7 +71,7 @@ export function registerSettingsIpc({
     return testNetworkProxy(settings);
   });
 
-  handle(IPC.invoke.settingsSet, async (settings: unknown) => {
+  const applySettings = async (settings: unknown) => {
     if (!host) throw new Error("host unavailable");
     const validatedSettings = validateSettingsWrite(settings);
     const currentSettings = await host.call<AppSettings>("settings.get");
@@ -124,6 +125,13 @@ export function registerSettingsIpc({
     );
     applyDeveloperMode(validatedSettings as { developerMode?: unknown } | null);
     return result;
+  };
+  handle(IPC.invoke.settingsSet, applySettings);
+  handle(IPC.invoke.settingsConfigureGeneral, async (settings: unknown) => {
+    const patch = validateGeneralSettingsPatch(settings);
+    await applySettings(patch);
+    if (!host) throw new Error("host unavailable");
+    return normalizeSettings(await host.call("settings.get"));
   });
 
   handle(IPC.invoke.commandShellList, async () => resolveEffectiveCommandShell());

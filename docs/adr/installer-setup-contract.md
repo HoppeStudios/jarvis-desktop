@@ -14,7 +14,8 @@ handlers as its UI, writes a non-secret success receipt and consumes the file.
 A failed setup remains available for inspection and does not claim completion.
 
 This is a local installation contract, not an external MCP operation. Existing
-MCP exclusions for settings, provider, OAuth and secret writes remain intact.
+MCP exclusions for raw settings, provider, OAuth and secret writes remain intact;
+the separate curated general-preferences operation has its own validation.
 It does not bypass operating-system rights, MCP server policies or UI-owned
 voice/media authorization. It must only run during a requested installation,
 before the new window opens, with no concurrent owner of the same profile.

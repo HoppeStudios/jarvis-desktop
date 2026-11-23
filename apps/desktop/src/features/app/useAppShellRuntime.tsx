@@ -812,7 +812,15 @@ export function useAppShellRuntime() {
         .catch(() => undefined);
     });
     const offRemoteInteractions = subscribeRemoteInteractions();
+    let settingsReadVersion = 0;
     const offSessionsChanged = api.onSessionsChanged((event) => {
+      if (event.reason === "mcp.settings") {
+        const version = ++settingsReadVersion;
+        void api.getSettings().then((settings) => {
+          if (version === settingsReadVersion) useAppStore.setState({ settings });
+        }).catch(() => undefined);
+        return;
+      }
       const store = useAppStore.getState();
       const revealImportedProjects =
         event.reason === "plugin.session.import" ||
@@ -988,6 +996,7 @@ export function useAppShellRuntime() {
       offHostStatus();
       offNotificationChanged();
       offComposerSuggestion();
+      settingsReadVersion += 1;
       offSessionsChanged();
       offRemoteInteractions();
       offNotificationActivated();
