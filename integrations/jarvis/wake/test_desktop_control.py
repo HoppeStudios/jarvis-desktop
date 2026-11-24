@@ -33,6 +33,16 @@ class WakeWorkerTests(unittest.TestCase):
         self.assertEqual(payload['expectedCallId'], 'own-call')
         self.assertNotIn('freshCoordinator', payload); self.assertNotIn('initialMuted', payload)
 
+    def test_only_timeout_end_forwards_cleanup_intent(self):
+        c = FakeClient()
+        worker.execute(c, dict(operation='voice', action='end', requestId='id', intentId='intent',
+                               intentSequence=5, expectedCallId='own-call', cleanupUnanswered=True), Path('.'))
+        self.assertIs(c.calls[0][1][0]['cleanupUnanswered'], True)
+        c = FakeClient()
+        worker.execute(c, dict(operation='voice', action='wake', requestId='id', intentId='intent',
+                               intentSequence=6, cleanupUnanswered=True), Path('.'))
+        self.assertNotIn('cleanupUnanswered', c.calls[0][1][0])
+
     def test_poll_returns_only_queue_summary(self):
         c = FakeClient()
         with patch.object(worker, 'queue_poll', return_value={'pendingCount':3, 'lastInvitation':1}):

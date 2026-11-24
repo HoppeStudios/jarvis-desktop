@@ -31,6 +31,7 @@ import {
   snapshotComposerDraft,
   writeComposerDraft,
   markComposerDraftEdited,
+  registerLiveComposerDraft,
 } from "../../../../lib/composer-draft-cache";
 import {
   editorSelectionRange,
@@ -167,6 +168,10 @@ export function useComposerDraft({
   const ref = useRef<HTMLDivElement>(null);
   const placeholderContextRef = useRef(`${variant}:${activeSessionId ?? HOME_DRAFT_KEY}`);
   const draftKeyRef = useRef(draftKey);
+  const renderedDraftKeyRef = useRef(draftKey);
+  renderedDraftKeyRef.current = draftKey;
+  useLayoutEffect(() => registerLiveComposerDraft(() =>
+    [draftKeyRef.current, renderedDraftKeyRef.current]), []);
   const workspacePathRef = useRef(workspacePath);
   workspacePathRef.current = workspacePath;
   const previousWorkspacePathRef = useRef(initialDraft?.workspacePath ?? workspacePath);

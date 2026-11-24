@@ -43,6 +43,8 @@ import { registerVoiceIpc } from "./voice-ipc";
 import { registerLiveVoiceIpc } from "./live-voice-ipc";
 import type { LiveCallService } from "../live-voice/call-service";
 import { createJarvisCoordinator } from "../jarvis/coordinator";
+import { JarvisCoordinatorCleanup, RendererCleanupProbe, createCleanupDocumentWatcher } from "../jarvis/coordinator-cleanup";
+import { liveOwnerFrame } from "../live-voice/owner";
 import type { ComposerSuggestionAnswer } from "../services/composer-suggestion";
 import type { LiveVoiceWidget } from "../live-voice/widget-window";
 import type { IpcRegistrar } from "./types";
@@ -86,6 +88,7 @@ export type RegisterIpcDependencies = {
   liveCallService?: LiveCallService;
   liveVoiceWidget?: LiveVoiceWidget;
   jarvisCaptureStatus?: () => unknown;
+  isSessionBusy: (sessionId: string) => boolean;
   restartForStorage: () => void;
   mcpOAuth?: McpOAuthManager;
   markLifecycleDialogRendererReady: (window: BrowserWindow) => boolean;
@@ -552,9 +555,29 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     registerVoiceIpc({ registrar, voiceService });
   }
   if (liveCallService && liveVoiceWidget) {
+    const cleanupProbe = new RendererCleanupProbe((owner, request) => {
+      const frame = liveOwnerFrame(getMainWindow(), owner);
+      if (!frame) throw new Error("cleanup renderer unavailable");
+      frame.send(IPC.event.sessionCleanupRequest, request);
+    });
+    const refreshCleanupOwner = createCleanupDocumentWatcher(
+      () => getMainWindow()?.webContents ?? null, () => cleanupProbe.invalidate(),
+    );
+    const coordinatorCleanup = new JarvisCoordinatorCleanup({
+      probe: cleanupProbe, refreshOwner: refreshCleanupOwner, host: getHost, acquireSessionOperation,
+      isBusy: id => dependencies.isSessionBusy(id),
+      drain: async id => {
+        const host = getHost();
+        if (!host) throw new Error("host unavailable");
+        await persistenceOutbox.prepareSessionMutation(id, () => host);
+      },
+      forget: id => { forgetTranscriptRewriteHistory(id); sessionProjects.delete(id); },
+      warn: () => logger.app("jarvis", "warn", "coordinator cleanup deferred"),
+    });
     registerLiveVoiceIpc({ registrar, service: liveCallService, getMainWindow, widget: liveVoiceWidget,
       automationEnabled: async () => (await getHost()?.call<{ jarvisEnabled?: boolean }>("settings.get"))?.jarvisEnabled === true,
       captureStatus: dependencies.jarvisCaptureStatus,
+      cleanupProbe, coordinatorCleanup,
       createCoordinator: () => createJarvisCoordinator({ dataDir,
         settings: async () => { const host = getHost(); if (!host) throw new Error("host unavailable"); return host.call("settings.get"); },
         invoke: invokeRegistered, createChannel: IPC.invoke.sessionCreate, configureChannel: IPC.invoke.sessionConfigure }),

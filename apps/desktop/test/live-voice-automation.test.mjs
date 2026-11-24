@@ -17,6 +17,89 @@ function harness(extra={}){
 }
 async function waitFor(predicate){for(let i=0;i<100&&!predicate();i++)await new Promise(r=>setTimeout(r,1));assert.ok(predicate());}
 
+const greetingEvidence = { providerReady:true, requestSent:true, transcriptReceived:true, transcriptMatches:true,
+ measuredAudio:true, playbackActive:false, turnComplete:true, contextState:"running" };
+async function invitation(extra = {}, requestExtra = {}, elapsed = 10001) {
+ let cleanups = 0, observed = 0, now = 0;
+ const h = harness({now:()=>now,createCoordinator:async()=>"coordinator", observeCoordinator:async()=>{observed++;},
+  cleanupCoordinator:async(owner,id,verify)=>{assert.equal(id,"coordinator");assert.equal(await verify(),true);cleanups++;return "deleted";}, ...extra});
+ const request = {requestId:randomUUID(),action:"wake",freshCoordinator:true,presenceGreeting:true,...requestExtra};
+ const started = h.manager.control(request);
+ await waitFor(()=>h.state.sent.length===1);
+ h.state.call={...connected(), userSpeaking:false, userTurnCount:0, workBinding:{workSessionId:"coordinator"}};
+ await h.manager.complete(owner,{requestId:request.requestId,callId:h.state.call.callId,
+  greetingPlayed:true,greetingFinishedAt:Date.now(),greetingEvidence});
+ await started;
+ now = elapsed;
+ return {...h, cleanups:()=>cleanups,observed:()=>observed};
+}
+
+test("verified automatic timeout ends its exact call then deletes only its owned coordinator",async()=>{
+ const h=await invitation();
+ const result=await h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:h.state.call.callId,cleanupUnanswered:true});
+ assert.equal(result.coordinatorCleanup,"deleted");assert.equal(h.observed(),1);assert.equal(h.cleanups(),1);
+ assert.equal(h.state.call.mediaRelease,"confirmed");
+});
+
+test("Main refuses premature automatic timeout without ending the call",async()=>{
+ const h=await invitation({}, {}, 9999);
+ const result=await h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:h.state.call.callId,cleanupUnanswered:true});
+ assert.equal(result.state,"already-on");assert.equal(result.coordinatorCleanup,"deferred");
+ assert.equal(h.state.ended.length,0);assert.equal(h.cleanups(),0);
+});
+
+test("manual wakes and manual end never gain cleanup authority",async()=>{
+ for(const start of [{presenceGreeting:false},{freshCoordinator:false}]){
+  const h=await invitation({},start);
+  const result=await h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:h.state.call.callId,cleanupUnanswered:true});
+  assert.equal(result.coordinatorCleanup,"deferred");assert.equal(h.cleanups(),0);
+ }
+ const h=await invitation();
+ await h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:h.state.call.callId});
+ assert.equal(h.cleanups(),0);
+});
+
+test("actual turns, sticky speech, missing presence state and delegated work preserve coordinator",async()=>{
+ for(const change of [{userTurnCount:1},{lastUserSpeechAt:1},{lastUserTurnAt:1},{userSpeaking:true},
+  {userTurnCount:undefined},{workOperations:[{operationId:"work"}]},{workBinding:{workSessionId:"different"}}]){
+  const h=await invitation();Object.assign(h.state.call,change);
+  const result=await h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:h.state.call.callId,cleanupUnanswered:true});
+  assert.equal(result.coordinatorCleanup,"deferred",JSON.stringify(change));assert.equal(h.cleanups(),0);
+ }
+});
+
+test("an already ended or closing call is not adopted as a timeout-owned end",async()=>{
+ for(const phase of ["ended","closing"]){
+  const h=await invitation();h.state.call.phase=phase;h.state.call.mediaRelease="confirmed";
+  const result=await h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:h.state.call.callId,cleanupUnanswered:true});
+  assert.equal(result.coordinatorCleanup,"deferred");assert.equal(h.cleanups(),0);
+ }
+});
+
+test("a greeting receipt without complete measured evidence cannot authorize cleanup",async()=>{
+ for(const patch of [{measuredAudio:false},{transcriptMatches:false},{turnComplete:false},{contextState:"suspended"},{playbackActive:true}]) {
+  let cleaned=false;
+  const h=harness({now:()=>20000,createCoordinator:async()=>"coordinator",cleanupCoordinator:async()=>{cleaned=true;return "deleted";}});
+  const requestId=randomUUID();const started=h.manager.control({requestId,action:"wake",freshCoordinator:true,presenceGreeting:true});
+  await waitFor(()=>h.state.sent.length===1);
+  h.state.call={...connected(),userSpeaking:false,userTurnCount:0,workBinding:{workSessionId:"coordinator"}};
+  await h.manager.complete(owner,{requestId,callId:h.state.call.callId,greetingPlayed:true,greetingFinishedAt:Date.now(),greetingEvidence:{...greetingEvidence,...patch}});
+  await started;
+  const result=await h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:h.state.call.callId,cleanupUnanswered:true});
+  assert.equal(result.coordinatorCleanup,"deferred");assert.equal(cleaned,false);
+ }
+});
+
+test("unconfirmed release and a missing call never prove no user input",async()=>{
+ for(const replacement of [null,{...connected(),phase:"ended",mediaRelease:"unconfirmed"}]){
+  const h=await invitation();const callId=h.state.call.callId;
+  h.state.call=replacement && {...replacement,callId};
+  if(replacement) await assert.rejects(h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:callId,cleanupUnanswered:true}),{errorCode:"LIVE_MEDIA_RELEASE_UNCONFIRMED"});
+  else await assert.rejects(h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:callId,cleanupUnanswered:true}),{errorCode:"LIVE_STALE_CALL"});
+  assert.equal(h.cleanups(),0);
+ }
+});
+
 test("voice controls reject arbitrary context, invalid IDs and unknown actions",()=>{
  for(const value of [{requestId:"no",action:"start"},{requestId:randomUUID(),action:"execute"},{requestId:randomUUID(),action:"start",instructions:"run arbitrary text"}])assert.throws(()=>parseAutomationControl(value));
 });

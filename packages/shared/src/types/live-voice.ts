@@ -1,4 +1,11 @@
 /** Public, secret-free contracts for the app-owned real-time voice feature. */
+export type SessionCleanupRequest = {
+  requestId: string;
+  sessionId: string;
+  phase: "observe" | "prepare" | "commit" | "release";
+  deleted?: boolean;
+};
+export type SessionCleanupResponse = Pick<SessionCleanupRequest, "requestId" | "sessionId" | "phase"> & { ready: boolean };
 import type { SessionSource } from "./sessions.js";
 export type LiveGreetingEvidence = {
   providerReady: boolean; requestSent: boolean; transcriptReceived: boolean;
@@ -19,7 +26,11 @@ export type LiveAutomationControl = {
   initialMuted?: boolean;
   /** Fixed presence invitation after a verified connection; never arbitrary speech. */
   presenceGreeting?: boolean;
+  /** Automatic invitation deadline, 5–60 seconds after verified playback receipt. */
+  presenceTimeoutSeconds?: number;
   expectedCallId?: string;
+  /** Timeout of a verified automatic invitation, not manual End. */
+  cleanupUnanswered?: boolean;
 };
 export type LiveAutomationRequest = {
   requestId: string;
@@ -44,6 +55,7 @@ export type LiveAutomationResult = {
   muted?: boolean;
   playbackBlocked?: boolean;
   coordinatorSessionId?: string;
+  coordinatorCleanup?: "deleted" | "deferred";
   greetingPlayed?: boolean;
   greetingFinishedAt?: number;
   greetingEvidence?: LiveGreetingEvidence;

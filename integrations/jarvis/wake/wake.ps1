@@ -60,11 +60,13 @@ function Start-Worker([hashtable]$request,[string]$reply,[bool]$automatic){
  $job=@{process=$process;request=$request;input=$inputPath;output=$resultPath;reply=$reply;automatic=$automatic;started=[DateTime]::UtcNow}
  $jobs.Add($job);return $job
 }
-function Voice-Request([string]$action,[string]$reply,[bool]$automatic=$false,[string]$expected=$null){
+function Voice-Request([string]$action,[string]$reply,[bool]$automatic=$false,[string]$expected=$null,[bool]$cleanupUnanswered=$false){
  $persistent.intentSequence=[long]$persistent.intentSequence+1;Persist
  $request=@{operation='voice';action=$action;requestId=[guid]::NewGuid().ToString();intentId=$persistent.intentId;intentSequence=$persistent.intentSequence;presenceGreeting=$automatic}
+ if($automatic){$request.presenceTimeoutSeconds=[double]$settings.invitationTimeoutSeconds}
  if($MutedTestCalls){$request.initialMuted=$true}
  if($expected){$request.expectedCallId=$expected}
+ if($cleanupUnanswered){$request.cleanupUnanswered=$true}
  $null=Start-Worker $request $reply $automatic
 }
 function Invoke-CommandAction([string]$action,[string]$reply){
@@ -144,7 +146,7 @@ try {
       if(-not $call -or $call.callId -ne $invite.callId -or $call.phase -in @('ended','failed')){$script:invitation=$null}
       elseif($call.userTurnCount -gt 0 -or $call.lastUserSpeechAt -or ($invite.finished -and $script:lastSpeech -ge $invite.finished.AddMilliseconds(400))){$script:invitation=$null}
       elseif(-not $invite.finished -or $now -ge $invite.finished.AddSeconds([double]$settings.invitationTimeoutSeconds)){
-       $script:invitation=$null;$script:desired=$false;Voice-Request 'end' $null $false $invite.callId
+       $script:invitation=$null;$script:desired=$false;Voice-Request 'end' $null $false $invite.callId ([bool]$invite.finished)
       }
      }elseif(-not $script:paused -and $settings.notificationsEnabled -and $packet.pendingCount -gt 0 -and -not $active -and $voiceJobs -eq 0){
       $last=[Math]::Max([double]$persistent.lastInvitation,[double]$packet.lastInvitation)

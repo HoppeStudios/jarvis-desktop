@@ -18,6 +18,8 @@ import { LivePcmSession } from "./live-pcm-session";
 import pcmWorkletUrl from "./pcm-worklet.js?url&no-inline";
 import playbackWorkletUrl from "./playback-worklet.js?url&no-inline";
 import { LiveAutomationReceiver } from "./live-automation-receiver";
+import { noteSessionCleanupUserPresence } from "../../../lib/session-cleanup-readiness";
+import { installSessionCleanupRuntime } from "./session-cleanup-runtime";
 import { playPresenceGreeting, type PresenceGreetingResult } from "./presence-greeting";
 import { CodexTranscriptAssembler } from "./codex-transcript";
 
@@ -89,6 +91,7 @@ export class LiveCallController {
   constructor() {
     const automation = new LiveAutomationReceiver(this, liveVoiceApi.completeAutomation);
     this.disposers.push(
+      installSessionCleanupRuntime(() => !this.snapshot.starting && !this.snapshot.stopping && this.resources.size === 0),
       liveVoiceApi.onAutomationRequest((request) => { void automation.receive(request); }),
       liveVoiceApi.onView((view) => this.handleView(view)),
       liveVoiceApi.onControl((event) => this.handleControl(event)),
@@ -447,6 +450,7 @@ export class LiveCallController {
             }
             break;
           case "activity":
+            if (event.userSpeaking === true) noteSessionCleanupUserPresence(this.snapshot.call?.workBinding?.workSessionId);
             void liveVoiceApi.reportMedia({ callId, kind: "activity", userSpeaking: event.userSpeaking, assistantSpeaking: event.assistantSpeaking }).catch((error) => this.failActive(callId, error));
             break;
           case "turn-complete":
@@ -713,6 +717,7 @@ export class LiveCallController {
   private handleTranscript(callId: string, segment: LiveTranscriptSegment): void {
     const call = this.snapshot.call;
     if (!call || call.callId !== callId) return;
+    if (segment.role === "user") noteSessionCleanupUserPresence(call.workBinding?.workSessionId);
     const current = this.snapshot.transcripts;
     const index = current.findIndex((item) => item.id === segment.id && item.role === segment.role);
     const next = index >= 0

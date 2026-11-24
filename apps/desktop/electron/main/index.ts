@@ -1000,6 +1000,7 @@ function registerIpc() {
     activeTurns,
     completionNoticeTurns,
     isTurnDispatchable,
+    isSessionBusy,
     sessionProjects,
     persistenceOutbox,
     logger,

@@ -55,8 +55,11 @@ The [Pi wake listener](wake/README.md) has its own guarded installer and retains
 the existing Startup registration. Installing the desktop alone does not switch
 an existing Codex listener. The native GPT greeting has passed installed playback
 and cancellation checks with a muted microphone; human listening and actual
-spoken wake recognition remain separate live acceptance checks. Empty-call
-cleanup and cross-origin answer routing remain separate deployment gates.
+spoken wake recognition remain separate live acceptance checks. Guarded empty
+automatic-coordinator cleanup has isolated contract/Host protocol coverage; idle
+deployment and installed-client cleanup acceptance remain outstanding, as does
+cross-origin answer routing. Manual, selected, drafted, active or uncertain chats
+are never automatically deleted.
 Managed Pi questions and final root replies have a native event producer;
 successful native answers record exact request receipts and preserve partial
 progress. Capture failure is visible and never blocks the original question.
@@ -81,7 +84,8 @@ pnpm install --frozen-lockfile
 pnpm build:js
 pnpm build:host
 pnpm --filter @pi-desktop/desktop typecheck
-node --test apps/desktop/test/jarvis-*.test.mjs apps/desktop/test/live-voice-automation.test.mjs
+node --test apps/desktop/test/jarvis-*.test.mjs apps/desktop/test/live-voice-automation.test.mjs apps/desktop/test/session-cleanup-readiness.test.mjs
+node scripts/e2e-jarvis-empty-cleanup.mjs
 pnpm --filter @pi-desktop/voice-runtime test
 pnpm --filter @pi-desktop/desktop exec electron-builder --dir --publish never
 ```

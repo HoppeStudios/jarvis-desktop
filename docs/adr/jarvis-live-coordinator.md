@@ -67,6 +67,51 @@ neither silence nor interruption completes queue work. Browser playback or
 microphone permission failures remain visible errors, without a silent fallback
 to another voice, global input or a weakened browser policy.
 
+## Unanswered automatic coordinator cleanup
+
+Automatic wake starts opt into a 5–60 second presence deadline (default ten).
+Main records a monotonic deadline only after the trusted renderer verifies the
+fixed greeting's transcript, measured running audio, turn completion and drained
+playback. A timeout End names the exact expected call and requests
+`cleanupUnanswered`; it is not an ordinary delete option. Early timeouts and
+observed presence keep the live call. Manual wakes/End, startup cancellation,
+missing calls and unverified greeting playback never acquire cleanup authority.
+
+Rust owns a private, process-local capability and a complete metadata snapshot
+for a newly helper-created coordinator. Main owns its call/intent/document
+identity and holds the existing per-session operation across busy checks, a
+strict persistence-outbox drain, readiness and conditional deletion. Host
+restart or renderer navigation invalidates eligibility; ownership is never
+reconstructed from a title. The private Host RPC checks under AppState and a
+transaction: unchanged metadata, zero messages/turns/queue/dependent session
+records, no active tools/processes, no transcript/revision/inflight file, and no
+scratch attachment, review or visualization directory.
+Even an empty, torn or inaccessible file is uncertainty. No schema migration or
+persistent cleanup ledger is introduced; normal session deletion is unchanged.
+
+The renderer owns a metadata-only observe/prepare/commit/release reservation.
+Unknown nonces, phases, documents and stale acknowledgements fail closed.
+Previously adopted/selected sessions, any draft history, text (even whitespace),
+attachments, prefill, retained panes, changed draft revisions or mounted editor
+ownership refuse cleanup. A mounted editor is unsafe regardless of its lazy
+cache: useComposerDraft registers both outgoing and incoming ownership during
+switching. Renderer-observed partial user transcripts/speech are sticky locally
+before asynchronous Main reporting. Main separately rechecks its sticky call
+presence, zero turn count, unchanged work target, no work operations, ended call
+and confirmed media release across every asynchronous readiness stage. The
+timeout itself must end the still-connected expected call; it cannot adopt an
+already ended or closing manual termination as deletion authority.
+
+Selection before final reservation cancels cleanup. Final reservation is the
+renderer admission linearization point: subsequent navigation to that one
+unselected session waits for deletion acknowledgement, without mounting an
+editor or accepting input. Other sessions and drafts remain usable. Refusal
+releases the reservation; an unknown Host outcome keeps it until a conclusive
+release or renderer reload. Lost readiness, active work or uncertain media
+preserves the chat rather than retrying deletion. Successful cleanup refreshes
+only session-list metadata. It never reads, clears, acknowledges or reviews the
+persistent Inbox. No idle-updater behavior is implemented.
+
 ## Validation boundary
 
 Scheduled maintenance is controlled through the same authenticated MCP gateway

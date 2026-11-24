@@ -16,13 +16,15 @@ function validGreetingEvidence(raw: unknown): boolean {
 export function parseAutomationControl(raw: unknown): LiveAutomationControl {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
   const v = raw as Record<string, unknown>;
-  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "freshCoordinator", "initialMuted", "presenceGreeting", "expectedCallId", "intentId", "intentSequence"].includes(k)) ||
+  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "freshCoordinator", "initialMuted", "presenceGreeting", "expectedCallId", "intentId", "intentSequence", "cleanupUnanswered", "presenceTimeoutSeconds"].includes(k)) ||
     !uuid(v.requestId) || !["start", "toggle", "wake", "new-chat", "end"].includes(String(v.action)) ||
     ((v.intentId !== undefined || v.intentSequence !== undefined) && (!uuid(v.intentId) || !Number.isSafeInteger(v.intentSequence) || Number(v.intentSequence) < 1)) ||
     (v.workSessionId !== undefined && (typeof v.workSessionId !== "string" || !v.workSessionId.trim() || v.workSessionId.length > 256)) ||
     (v.initialMuted !== undefined && typeof v.initialMuted !== "boolean") ||
     (v.presenceGreeting !== undefined && typeof v.presenceGreeting !== "boolean") ||
+    (v.presenceTimeoutSeconds !== undefined && (typeof v.presenceTimeoutSeconds !== "number" || !Number.isFinite(v.presenceTimeoutSeconds) || v.presenceTimeoutSeconds < 5 || v.presenceTimeoutSeconds > 60 || v.presenceGreeting !== true || v.freshCoordinator !== true)) ||
     (v.expectedCallId !== undefined && !uuid(v.expectedCallId)) ||
+    (v.cleanupUnanswered !== undefined && (v.cleanupUnanswered !== true || v.action !== "end" || !uuid(v.expectedCallId))) ||
     (v.freshCoordinator !== undefined && typeof v.freshCoordinator !== "boolean") ||
     (v.freshCoordinator === true && v.workSessionId !== undefined)) throw fail("INVALID_PARAMS");
   return v as LiveAutomationControl;
@@ -43,17 +45,22 @@ type AutomationDependencies = {
   send: (owner: LiveOwner, request: LiveAutomationRequest) => void;
   end: (owner: LiveOwner, request: { callId: string; reason: "user-ended" } | { requestId: string; reason: "user-cancelled-start" }) => Promise<unknown>;
   createCoordinator?: () => Promise<string>;
+  observeCoordinator?: (owner: LiveOwner, id: string) => Promise<void>;
+  cleanupCoordinator?: (owner: LiveOwner, id: string, verifyCall: () => Promise<boolean>) => Promise<"deleted" | "deferred">;
   timeoutMs?: number;
+  now?: () => number;
 };
 
 /** Main owns decisions and cancellation, never the renderer's media objects. */
 export class LiveVoiceAutomation {
   private pending: Pending | null = null;
+  private invitation: { callId: string; sessionId: string; owner: LiveOwner; expiresAt: number } | null = null;
   private decisions: Promise<unknown> = Promise.resolve();
   private readonly requests = new Map<string, { fingerprint: string; promise: Promise<LiveAutomationResult> }>();
   private readonly intents = new Map<string, number>();
   private readonly deps: AutomationDependencies;
   constructor(deps: AutomationDependencies) { this.deps = deps; }
+  private now(): number { return this.deps.now?.() ?? performance.now(); }
 
   async status() {
     await this.pruneOwner();
@@ -90,7 +97,15 @@ export class LiveVoiceAutomation {
     let status = await this.deps.status();
     if (request.expectedCallId && status.call?.callId !== request.expectedCallId) throw fail("LIVE_STALE_CALL");
     if (request.action === "end" || request.action === "toggle" && (this.pending || live(status.call))) {
-      return { completion: this.end(request, status) };
+      if (request.cleanupUnanswered && this.invitation && live(status.call) && this.invitation.callId === request.expectedCallId &&
+          (this.now() < this.invitation.expiresAt || !this.unanswered(status.call, this.invitation))) {
+        return { completion: Promise.resolve({ requestId: request.requestId, state: "already-on", callId: status.call?.callId, coordinatorCleanup: "deferred" }) };
+      }
+      // Cleanup holds admission through deletion, so a newer start cannot replace
+      // the call evidence while it is being checked. Manual End is unchanged.
+      return request.cleanupUnanswered
+        ? { completion: Promise.resolve(await this.end(request, status)) }
+        : { completion: this.end(request, status) };
     }
     if (request.action === "wake" && (this.pending || live(status.call))) {
       const pending = this.pending && this.requests.get(this.pending.request.requestId)?.promise;
@@ -111,6 +126,9 @@ export class LiveVoiceAutomation {
     const coordinatorSessionId = request.freshCoordinator
       ? await this.deps.createCoordinator?.() : undefined;
     if (request.freshCoordinator && !coordinatorSessionId) throw fail("LIVE_COORDINATOR_UNAVAILABLE");
+    if (coordinatorSessionId && request.presenceGreeting) {
+      await this.deps.observeCoordinator?.(owner, coordinatorSessionId);
+    }
     const completion = new Promise<LiveAutomationResult>((resolve, reject) => {
       const timer = setTimeout(() => {
         const pending = this.pending;
@@ -129,19 +147,48 @@ export class LiveVoiceAutomation {
 
   private async end(request: LiveAutomationControl, status: LiveStatus): Promise<LiveAutomationResult> {
     const pending = this.pending;
+    let endedForTimeout = false;
     if (pending) await this.cancelPending(pending);
     if (live(status.call)) {
       const owner = this.deps.owner();
       if (!owner) throw fail("LIVE_INVALID_OWNER");
       const current = await this.deps.status();
       if (current.call?.callId === status.call!.callId && live(current.call)) {
+        const wasConnected = current.call.phase === "connected";
         await this.deps.end(owner, { callId: status.call!.callId, reason: "user-ended" });
+        endedForTimeout = request.cleanupUnanswered === true && wasConnected;
       } else if (live(current.call)) throw fail("LIVE_STALE_CALL");
     }
     const after = await this.deps.status();
     if (after.call?.mediaRelease === "unconfirmed") throw fail("LIVE_MEDIA_RELEASE_UNCONFIRMED");
     if (live(after.call)) throw fail("LIVE_STALE_CALL");
-    return { requestId: request.requestId, state: pending || live(status.call) ? "ended" : "already-ended", ...(after.call ? { callId: after.call.callId } : {}) };
+    const invitation = this.invitation;
+    this.invitation = null;
+    let coordinatorCleanup: "deleted" | "deferred" | undefined;
+    if (request.cleanupUnanswered) {
+      coordinatorCleanup = "deferred";
+      const owner = this.deps.owner();
+      if (endedForTimeout && invitation && owner && invitation.callId === request.expectedCallId &&
+          ownerKey(owner) === ownerKey(invitation.owner) && owner.url === invitation.owner.url) {
+        const verifyCall = async () => {
+          const current = await this.deps.status();
+          const currentOwner = this.deps.owner();
+          return Boolean(currentOwner && ownerKey(currentOwner) === ownerKey(owner) && currentOwner.url === owner.url &&
+            !this.pending && this.now() >= invitation.expiresAt && this.unanswered(current.call, invitation) && current.call?.phase === "ended" &&
+            current.call.mediaRelease === "confirmed" &&
+            (!request.intentId || this.intents.get(request.intentId) === request.intentSequence));
+        };
+        if (await verifyCall()) coordinatorCleanup = await this.deps.cleanupCoordinator?.(owner, invitation.sessionId, verifyCall) ?? "deferred";
+      }
+    }
+    return { requestId: request.requestId, state: pending || live(status.call) ? "ended" : "already-ended",
+      ...(after.call ? { callId: after.call.callId } : {}), ...(coordinatorCleanup ? { coordinatorCleanup } : {}) };
+  }
+
+  private unanswered(call: LiveStatus["call"], invitation: { callId: string; sessionId: string }): boolean {
+    return Boolean(call && call.callId === invitation.callId && call.workBinding?.workSessionId === invitation.sessionId &&
+      call.userTurnCount === 0 && call.lastUserTurnAt === undefined && call.lastUserSpeechAt === undefined &&
+      call.userSpeaking === false && !call.workOperations?.length);
   }
 
   private async pruneOwner(): Promise<void> {
@@ -193,11 +240,21 @@ export class LiveVoiceAutomation {
     } else {
       const call = status.call;
       if (!call || call.callId !== response.callId || call.phase !== "connected") pending.reject(fail("LIVE_STALE_CALL"));
-      else pending.resolve({ requestId: response.requestId, state: "connected", callId: call.callId, muted: call.muted, playbackBlocked: call.playbackBlocked,
+      else {
+        const evidence = response.greetingEvidence;
+        if (pending.coordinatorSessionId && pending.request.presenceGreeting && response.greetingPlayed &&
+            evidence && evidenceFlags.filter(key => key !== "playbackActive").every(key => evidence[key as keyof typeof evidence] === true) &&
+            evidence.playbackActive === false && evidence.contextState === "running") {
+          const invitation = { callId: call.callId, sessionId: pending.coordinatorSessionId, owner,
+            expiresAt: this.now() + (pending.request.presenceTimeoutSeconds ?? 10) * 1000 };
+          if (this.unanswered(call, invitation)) this.invitation = invitation;
+        }
+        pending.resolve({ requestId: response.requestId, state: "connected", callId: call.callId, muted: call.muted, playbackBlocked: call.playbackBlocked,
         ...(pending.coordinatorSessionId ? { coordinatorSessionId: pending.coordinatorSessionId } : {}),
         ...(pending.request.presenceGreeting ? { greetingPlayed: response.greetingPlayed === true,
           ...(response.greetingEvidence ? { greetingEvidence: response.greetingEvidence } : {}),
           ...(response.greetingPlayed && response.greetingFinishedAt ? { greetingFinishedAt: response.greetingFinishedAt } : {}) } : {}) });
+      }
     }
     return { accepted: true };
   }

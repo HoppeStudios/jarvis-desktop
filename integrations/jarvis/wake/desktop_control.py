@@ -80,6 +80,10 @@ def execute(client, request, root):
     if action != 'end':
         payload.update(freshCoordinator=True, initialMuted=request.get('initialMuted', False),
                        presenceGreeting=request.get('presenceGreeting', False))
+    if action != 'end' and request.get('presenceGreeting') and 'presenceTimeoutSeconds' in request:
+        payload['presenceTimeoutSeconds'] = request['presenceTimeoutSeconds']
+    if request.get('cleanupUnanswered') is True and action == 'end':
+        payload['cleanupUnanswered'] = True
     if request.get('expectedCallId'):
         payload['expectedCallId'] = request['expectedCallId']
     return client.invoke('voice/control', [payload], True)

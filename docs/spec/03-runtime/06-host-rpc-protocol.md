@@ -1,5 +1,25 @@
 # 06. Host RPC Protocol
 
+### Private Jarvis conditional cleanup
+
+Main-only `jarvis.coordinator.arm({id, capability})` snapshots a newly created
+empty coordinator in process memory. `jarvis.coordinator.deleteEmpty` accepts
+only those exact IDs/capability (unknown fields, including caller `empty`,
+are rejected) and returns `{ok: boolean}`. Neither method is a public MCP or
+remote-control operation. UUID validation and ephemeral ownership prevent title
+matching or restart recovery from authorizing cleanup.
+
+Under the authoritative AppState mutex and transaction, delete rechecks the
+complete session metadata snapshot, zero message allocator/todo state, absence
+of any persisted foreign-key dependents, active tools/background work and
+transcript/revision/inflight files or scratch/review/visualization directories.
+Any data, edit, running turn, queued prompt,
+unknown file or mismatch preserves the session. Normal `session.delete` is
+unchanged. Main additionally owns call/presence/media proof and per-session
+operation admission; renderer readiness never substitutes for Host persistence
+checks. No storage schema or queue-state change is required.
+
+
 
 ### Bounded existing-history operations (#1868)
 

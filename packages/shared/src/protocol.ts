@@ -122,6 +122,7 @@ export const IPC = {
     jarvisSettingsOpen: "pi-desktop/jarvis/settings/open",
     liveVoiceAutomationControl: "pi-desktop/voice/live/automation/control",
     liveVoiceAutomationComplete: "pi-desktop/voice/live/automation/complete",
+    sessionCleanupResponse: "pi-desktop/session/cleanupResponse",
     liveVoiceReportUserTurn: "pi-desktop/voice/live/reportUserTurn",
     liveVoicePrepare: "pi-desktop/voice/live/prepare",
     liveVoiceConnect: "pi-desktop/voice/live/connect",
@@ -508,6 +509,7 @@ export const IPC = {
     /** Host-originated app settings mutation (e.g. plugin `app.setTheme`). */
     settingsChanged: "pi-desktop/app/event/settingsChanged",
     liveVoiceAutomationRequest: "pi-desktop/voice/live/event/automationRequest",
+    sessionCleanupRequest: "pi-desktop/session/event/cleanupRequest",
     configSyncChanged: "pi-desktop/configSync/event/changed",
     /** A chat-started background task started, exited, or was stopped. */
     backgroundTasksChanged: "pi-desktop/backgroundTasks/event/changed",

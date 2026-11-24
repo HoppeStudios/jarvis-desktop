@@ -90,9 +90,25 @@ export function sameDraftFileReference(
   );
 }
 
+// DOM ownership is separate from the lazily serialized cache. A switching
+// composer may still own both the outgoing and incoming editor slots.
+const liveDrafts = new Set<() => readonly string[]>();
+export function registerLiveComposerDraft(keys: () => readonly string[]): () => void {
+  liveDrafts.add(keys);
+  return () => { liveDrafts.delete(keys); };
+}
+export function hasLiveComposerDraft(key: string): boolean {
+  return [...liveDrafts].some(keys => keys().includes(key));
+}
+
 const cache = new Map<string, CachedComposerDraft>();
 const revisions = new Map<string, number>();
 let revisionCounter = 0;
+
+/** Existing cache/revision state means a fresh session may already be adopted. */
+export function hasComposerDraftHistory(key: string): boolean {
+  return cache.has(key) || revisions.has(key) || hasLiveComposerDraft(key);
+}
 
 export function draftKeyForSession(sessionId: string | null | undefined): string {
   return sessionId ?? HOME_DRAFT_KEY;

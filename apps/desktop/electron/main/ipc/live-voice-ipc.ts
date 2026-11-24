@@ -1,3 +1,4 @@
+import type { JarvisCoordinatorCleanup, RendererCleanupProbe } from "../jarvis/coordinator-cleanup";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { IPC, type LiveEndReason, type LiveVoiceWidgetAction } from "@pi-desktop/shared";
 import type { LiveCallService as LiveCallServiceImpl, LiveOwner } from "../live-voice/call-service";
@@ -22,6 +23,8 @@ export function registerLiveVoiceIpc(input: {
   automationEnabled?: () => Promise<boolean>;
   createCoordinator?: () => Promise<string>;
   captureStatus?: () => unknown;
+  coordinatorCleanup?: JarvisCoordinatorCleanup;
+  cleanupProbe?: RendererCleanupProbe;
 }): void {
   const { registrar, service, getMainWindow, widget } = input;
   const owner = (event: IpcMainInvokeEvent): LiveOwner => {
@@ -39,7 +42,10 @@ export function registerLiveVoiceIpc(input: {
     },
     end: (identity, request) => service.end(identity, request),
     createCoordinator: input.createCoordinator,
+    observeCoordinator: (identity, id) => input.coordinatorCleanup?.observe(identity, id) ?? Promise.resolve(),
+    cleanupCoordinator: (identity, id, verify) => input.coordinatorCleanup?.cleanup(identity, id, verify) ?? Promise.resolve("deferred"),
   });
+  registrar.handleWithEvent(IPC.invoke.sessionCleanupResponse, async (event, raw) => input.cleanupProbe?.complete(owner(event), raw) ?? { accepted: false });
   registrar.handle(IPC.invoke.liveVoiceAutomationStatus, async () => ({...await automation.status(),
     ...(input.captureStatus ? {queueCapture:input.captureStatus()} : {})}));
   registrar.handle(IPC.invoke.jarvisSettingsOpen, async () => {

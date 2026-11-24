@@ -21,7 +21,7 @@ import {
 } from "@pi-desktop/shared";
 import type { LiveCallView } from "@pi-desktop/shared";
 
-async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
+export async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
   const bridge = window.piDesktop;
   if (!bridge) throw liveError("LIVE_INVALID_OWNER", "Live Voice bridge unavailable");
   const result = await bridge.invoke<T>(channel, ...args);
@@ -69,7 +69,7 @@ export const liveVoiceApi = {
     subscribe(IPC.event.liveVoiceWidgetAction, listener),
 };
 
-function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
+export function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
   const bridge = window.piDesktop;
   if (!bridge) return () => undefined;
   return bridge.on(channel, (value) => listener(value as T));

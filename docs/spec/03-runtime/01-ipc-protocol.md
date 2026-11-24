@@ -25,6 +25,35 @@ added to MCP status. Other adapters update markers from their real wire events.
 Duplicate final IDs do not count twice. Mouse/keyboard activity cannot update
 these markers, so a short spoken reply is not lost between invitation polls.
 
+### Conditional unanswered coordinator cleanup
+
+Automatic fresh coordinator starts may pass `presenceTimeoutSeconds` (5–60,
+default ten) with `presenceGreeting: true`. Main starts a monotonic deadline
+from verified greeting completion receipt. Only `end` with an exact
+`expectedCallId` may request `cleanupUnanswered: true`. This is intent,
+not proof of emptiness. The result adds `coordinatorCleanup: deleted | deferred`.
+Manual End, ordinary sessions and cancelled/unverified startup are never deleted.
+`userTurnCount` is explicitly zero on call views before any actual final turn;
+missing call/presence state never proves silence.
+
+Private `session/event/cleanupRequest` and `session/cleanupResponse` IPC
+carry only Main-issued request/session IDs, observe/prepare/commit/release phase,
+readiness and a conclusive deletion result. They disclose no editor text,
+attachments, paths, queue entries or conversation history. Replies must match
+the pending nonce, phase, session and trusted owner; navigation invalidates them.
+Renderer readiness rejects selected/selecting/retained/prefilled sessions, prior
+draft history, changed revisions and any live editor owner, not just cached text.
+Local possible user speech is sticky even before its Main IPC report arrives.
+
+Main holds normal session-operation admission through Host acknowledgement.
+Selection before final renderer reservation cancels cleanup; later navigation to
+the reserved, unselected target waits and never mounts an editor for a deleted
+chat. Unknown deletion outcome keeps that reservation until a conclusive release
+or reload. Only the new automatic-cleanup path uses this reservation; normal
+session/delete refusals remain intact. Host makes the final empty-data decision
+under its lock/transaction, never from a renderer/caller boolean. Inbox state is
+not part of cleanup and is never changed.
+
 ### Jarvis initial Live queue context
 
 Local optional boolean preferences `jarvisEnabled` and `jarvisQueueEnabled` opt

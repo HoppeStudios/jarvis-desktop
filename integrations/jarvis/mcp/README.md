@@ -54,6 +54,16 @@ transcript matching, measured audio, context state and completion. No transcript
 text or credentials enter this diagnostic receipt. The invitation waits for the
 native provider's session-start event, not just an open WebRTC channel.
 
+Automatic fresh greetings may also set `presenceTimeoutSeconds` (5–60,
+default ten). A timed-out helper may request `cleanupUnanswered: true` only on
+`end` with its exact `expectedCallId`. Main independently verifies the
+monotonic deadline, owned session/call, sticky absence of user input and confirmed
+media release, then obtains renderer readiness and Rust conditional empty-data
+deletion. `coordinatorCleanup` reports `deleted` or `deferred`; missing or
+uncertain state never authorizes deletion. Manual/selected/drafted/active chats
+and the persistent Inbox are untouched. Startup cancellation still returns its
+actual `coordinatorSessionId` but never authorizes deletion by itself.
+
 `wake` ensures on without replacing/unmuting an existing call; `new-chat` ends the
 current call and waits for confirmed release before creating the next. A wake
 listener can attach a persistent UUID `intentId` and increasing integer

@@ -69,9 +69,15 @@ confirmed playback completion. Actual native user speech/turns or possible local
 speech after the echo gate suppress hangup; mouse/keyboard activity never count
 as an answer. Interruption never reviews an item or clears the queue.
 
-Empty automatic-chat deletion and cross-origin answer forwarding require their
-own native guards and are not implemented by this listener. A silence timeout
-ends only its expected call; it does not modify the session database directly.
+After verified greeting playback, the timeout requests cleanup only for its
+expected call. Main independently verifies its monotonic deadline, provenance,
+zero/sticky user presence and confirmed media release. A fresh unselected empty
+coordinator can then be deleted through native renderer readiness, session
+admission and Rust conditional persistence checks. Selected/edited/drafted,
+active, cancelled, manual or uncertain sessions are preserved. The listener
+never accesses the session database or marks Inbox reports reviewed. Cross-origin
+answer forwarding remains a separate acceptance boundary. This source behavior
+still requires idle deployment and installed-client cleanup acceptance.
 
 ## Checks
 

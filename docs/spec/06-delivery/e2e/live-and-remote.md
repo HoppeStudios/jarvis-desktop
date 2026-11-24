@@ -761,3 +761,29 @@ their separate platform acceptance.
 - Deliver two distinct legacy Codex input transcripts without item IDs: both
   appear independently and both update user presence. Repeated identified final
   transcripts remain deduplicated.
+
+### E2E-JARVIS-EMPTY-COORDINATOR: Unanswered automatic invitation cleanup
+
+- Run `node scripts/e2e-jarvis-empty-cleanup.mjs` against this candidate's
+  built Rust Host. It uses real stdio/persistence, Main automation and operation
+  admission, and renderer readiness; greeting/media are explicit fixtures, not
+  installed playback or human speech evidence. Temporary data is isolated under
+  `PI_SCRATCH_DIR` when available. No account, microphone, voice call or Inbox
+  data participates.
+- Automatic fresh coordinator -> verified greeting receipt -> controlled timeout
+  -> exact call End -> confirmed release -> renderer reservation -> Host
+  conditional delete. Only this owned, untouched, empty session disappears.
+- Manual wake/End, actual/sticky/partial speech, cached text/attachments, current
+  editor ownership, prior/ongoing selection, pending prefill, stale/unknown
+  acknowledgement, active turn and queued prompt preserve the session. The
+  focused Node/Rust tests cover admission races, changed revisions and dependent
+  data, invalid owner/document, early timeout and unconfirmed/missing call state.
+- Selection before final reservation cancels cleanup. Navigation after that
+  reservation waits without mounting a target composer; Host refusal releases
+  it, while unknown deletion outcome remains reserved until conclusive release
+  or reload. Other chats and their drafts remain unchanged.
+- Restart the fixture Host and verify unrelated history is retained. Queue
+  acknowledgements/reports are never part of cleanup.
+- Before deployment, the owning idle installer must verify no active app work or
+  call, then perform installed-client acceptance. This fixture does not prove
+  real human listening/speech, OS media release or actual renderer IPC delivery.

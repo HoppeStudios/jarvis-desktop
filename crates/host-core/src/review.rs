@@ -155,7 +155,7 @@ fn safe_component(value: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-fn session_review_dir(data_dir: &Path, session_id: &str) -> Result<PathBuf> {
+pub(crate) fn session_review_dir(data_dir: &Path, session_id: &str) -> Result<PathBuf> {
     if !safe_component(session_id) {
         return Err(anyhow!("invalid session id"));
     }
