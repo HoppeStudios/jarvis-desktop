@@ -72,3 +72,10 @@ Codex AVAS transcript chunks carry `item.text`; authoritative finals arrive in
 `turn.done` with `turn.role` and `turn.transcript`. Preserve chunk boundaries and
 one utterance identity, replace partial text with the final, and count only actual
 final user turns as answers. Partial user speech still records sticky presence.
+
+Playback monitoring uses a silent AudioWorklet branch from the remote
+MediaStream. HTML audio remains the sole audible output. The audio clock emits
+only bounded activity flags; no samples are retained or sent to Main. This avoids
+MediaElement analyser silence and background-window animation-frame throttling.
+Only running-context measured signal counts as playback. Suspended/failed
+monitoring stays conservative, without relaxing autoplay or foreground policies.

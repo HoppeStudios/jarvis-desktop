@@ -3,7 +3,7 @@ import {
   codexDelegationFeedback,
   codexWorkFeedbackMessage,
   codexPresenceGreetingMessage,
-  isPlaybackSignalActive,
+  LIVE_PLAYBACK_SIGNAL_RMS_THRESHOLD,
 } from "@pi-desktop/voice-runtime/live";
 import type {
   LiveCallView,
@@ -16,6 +16,7 @@ import { useAppStore } from "../../../stores/app-store";
 import { liveVoiceApi, liveError } from "./live-voice-api";
 import { LivePcmSession } from "./live-pcm-session";
 import pcmWorkletUrl from "./pcm-worklet.js?url";
+import playbackWorkletUrl from "./playback-worklet.js?url";
 import { LiveAutomationReceiver } from "./live-automation-receiver";
 import { playPresenceGreeting, type PresenceGreetingResult } from "./presence-greeting";
 import { CodexTranscriptAssembler } from "./codex-transcript";
@@ -52,10 +53,10 @@ type StartResources = {
   peer?: RTCPeerConnection;
   channel?: RTCDataChannel;
   audio?: HTMLAudioElement;
-  playbackAnalyser?: AnalyserNode;
-  playbackSource?: MediaElementAudioSourceNode;
-  playbackGain?: GainNode;
-  playbackMonitorFrame?: number;
+  playbackSource?: MediaStreamAudioSourceNode;
+  playbackWorklet?: AudioWorkletNode;
+  playbackStateListener?: () => void;
+  playbackMonitorGeneration?: number;
   playbackActive?: boolean;
   heartbeat?: ReturnType<typeof setInterval>;
   captureEpoch: number;
@@ -400,7 +401,7 @@ export class LiveCallController {
       document.body.append(audio);
       resources.audio?.remove();
       resources.audio = audio;
-      if (resources.context) this.startPlaybackMonitor(callId, resources, audio);
+      if (resources.context) void this.startPlaybackMonitor(callId, resources, remoteStream);
       void audio.play().then(
         () => liveVoiceApi.reportMedia({ callId, kind: "playback-blocked", blocked: false }).catch(() => undefined),
         () => liveVoiceApi.reportMedia({ callId, kind: "playback-blocked", blocked: true }).catch(() => undefined),
@@ -463,64 +464,60 @@ export class LiveCallController {
     }
   }
 
-  private startPlaybackMonitor(callId: string, resources: StartResources, audio: HTMLAudioElement): void {
+  private async startPlaybackMonitor(callId: string, resources: StartResources, stream: MediaStream): Promise<void> {
     this.stopPlaybackMonitor(resources);
     const context = resources.context;
     if (!context) return;
-    let source: MediaElementAudioSourceNode | undefined;
+    const generation = resources.playbackMonitorGeneration;
+    const current = () => !resources.abort.signal.aborted && generation === resources.playbackMonitorGeneration;
+    const report = (active: boolean) => {
+      if (!current() || resources.playbackActive === active) return;
+      resources.playbackActive = active;
+      void liveVoiceApi.reportMedia({ callId, kind: "playback-activity", active, ready: true }).catch(() => undefined);
+    };
     try {
-      source = context.createMediaElementSource(audio);
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 1_024;
-      const gain = context.createGain();
-      gain.gain.value = 1;
-      source.connect(analyser);
-      analyser.connect(gain);
-      gain.connect(context.destination);
+      await context.audioWorklet.addModule(playbackWorkletUrl);
+      if (!current() || context.state === "closed") return;
+      const source = context.createMediaStreamSource(stream);
+      const node = new AudioWorkletNode(context, "pi-live-playback-monitor", {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+        processorOptions: { threshold: LIVE_PLAYBACK_SIGNAL_RMS_THRESHOLD },
+      });
       resources.playbackSource = source;
-      resources.playbackAnalyser = analyser;
-      resources.playbackGain = gain;
-      const samples = new Float32Array(analyser.fftSize);
-      const report = (active: boolean) => {
-        if (resources.playbackActive === active) return;
-        resources.playbackActive = active;
-        void liveVoiceApi.reportMedia({ callId, kind: "playback-activity", active, ready: true }).catch(() => undefined);
+      resources.playbackWorklet = node;
+      node.port.onmessage = event => {
+        if (!current() || event.data?.kind !== "playback-signal" || typeof event.data.active !== "boolean") return;
+        if (context.state !== "running") { report(true); return; }
+        if (event.data.active) resources.lastMeasuredAudioAt = Date.now();
+        report(event.data.active);
       };
-      const sample = () => {
-        if (resources.abort.signal.aborted) return;
-        if (context.state === "closed") {
-          report(true);
-          return;
-        }
-        if (context.state !== "running") report(true);
-        else {
-          analyser.getFloatTimeDomainData(samples);
-          const active = isPlaybackSignalActive(samples);
-          if (active) resources.lastMeasuredAudioAt = Date.now();
-          report(active);
-        }
-        resources.playbackMonitorFrame = requestAnimationFrame(sample);
-      };
-      report(context.state !== "running");
-      resources.playbackMonitorFrame = requestAnimationFrame(sample);
+      node.onprocessorerror = () => report(true);
+      resources.playbackStateListener = () => { if (context.state !== "running") report(true); };
+      context.addEventListener("statechange", resources.playbackStateListener);
+      source.connect(node);
+      node.connect(context.destination); // Processor outputs zero, never duplicate remote speech.
+      if (context.state !== "running") report(true);
     } catch {
-      // Preserve audio output, but keep Main fail-closed if monitoring fails.
-      try { source?.connect(context.destination); } catch { /* audio remains unavailable through this context */ }
-      resources.playbackActive = true;
-      void liveVoiceApi.reportMedia({ callId, kind: "playback-activity", active: true, ready: true }).catch(() => undefined);
+      // The independent HTML audio output remains intact; delivery stays guarded.
+      if (!current()) return;
+      report(true);
       this.stopPlaybackMonitor(resources);
     }
   }
 
   private stopPlaybackMonitor(resources: StartResources): void {
-    if (resources.playbackMonitorFrame !== undefined) cancelAnimationFrame(resources.playbackMonitorFrame);
-    resources.playbackMonitorFrame = undefined;
+    resources.playbackMonitorGeneration = (resources.playbackMonitorGeneration ?? 0) + 1;
+    if (resources.playbackStateListener) resources.context?.removeEventListener("statechange", resources.playbackStateListener);
+    if (resources.playbackWorklet) {
+      resources.playbackWorklet.port.onmessage = null;
+      try { resources.playbackWorklet.port.postMessage({ kind: "stop" }); } catch { /* already released */ }
+      resources.playbackWorklet.port.close();
+      resources.playbackWorklet.disconnect();
+    }
     resources.playbackSource?.disconnect();
-    resources.playbackAnalyser?.disconnect();
-    resources.playbackGain?.disconnect();
     resources.playbackSource = undefined;
-    resources.playbackAnalyser = undefined;
-    resources.playbackGain = undefined;
+    resources.playbackWorklet = undefined;
+    resources.playbackStateListener = undefined;
   }
 
   private readonly handlePortMessage = (event: MessageEvent): void => {
