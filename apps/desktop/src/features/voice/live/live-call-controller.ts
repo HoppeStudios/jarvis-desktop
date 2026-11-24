@@ -2,6 +2,7 @@ import {
   parseCodexMessage,
   codexDelegationFeedback,
   codexWorkFeedbackMessage,
+  codexPresenceGreetingMessage,
   isPlaybackSignalActive,
 } from "@pi-desktop/voice-runtime/live";
 import type {
@@ -17,6 +18,7 @@ import { LivePcmSession } from "./live-pcm-session";
 import pcmWorkletUrl from "./pcm-worklet.js?url";
 import { LiveAutomationReceiver } from "./live-automation-receiver";
 import { playPresenceGreeting, type PresenceGreetingResult } from "./presence-greeting";
+import { CodexTranscriptAssembler } from "./codex-transcript";
 
 export type LiveVoiceSnapshot = {
   status: LiveStatus | null;
@@ -65,7 +67,7 @@ type StartResources = {
   releaseFailed?: boolean;
   abort: AbortController;
   completedControlActions?: Set<string>;
-  transcriptSequence?: number;
+  transcripts?: CodexTranscriptAssembler;
   lastMeasuredAudioAt?: number;
   lastProviderTurnCompleteAt?: number;
 };
@@ -136,8 +138,7 @@ export class LiveCallController {
         playbackActive: resources.playbackActive === true,
         turnComplete: (resources.lastProviderTurnCompleteAt ?? 0) >= startedAt,
       }),
-      send: () => resources.channel!.send(JSON.stringify({ type: "response.create", event_id: `jarvis-presence-${crypto.randomUUID()}`,
-        response: { instructions: "Say exactly: Are you present, sir? Then wait silently for the user's reply. Do not call a tool or read queued items yet." } })),
+      send: () => resources.channel!.send(codexPresenceGreetingMessage()),
     });
   }
 
@@ -426,13 +427,12 @@ export class LiveCallController {
             void liveVoiceApi.reportDelegation({ callId, delegationId: event.delegationId, instruction: event.instruction }).catch((error) => this.failActive(callId, error));
             break;
           case "transcript":
-            // Legacy Codex events omit item IDs. They are distinct ordered
-            // data-channel messages, not updates to one perpetual input item.
-            const itemId = event.id === "codex-input" || event.id === "codex-output"
-              ? `${event.id}:${resources.transcriptSequence = (resources.transcriptSequence ?? 0) + 1}` : event.id;
-            this.handleTranscript(callId, { id: itemId, role: event.role, text: event.text, final: event.final, timestamp: Date.now() });
+            // Native chunks share one row until the authoritative final; a new
+            // utterance then receives its own presence/deduplication identity.
+            const segment = (resources.transcripts ??= new CodexTranscriptAssembler()).push(event, Date.now());
+            this.handleTranscript(callId, segment);
             if (event.role === "user" && event.final && event.text.trim()) {
-              void liveVoiceApi.reportUserTurn({ callId, itemId }).catch((error) => this.failActive(callId, error));
+              void liveVoiceApi.reportUserTurn({ callId, itemId: segment.id }).catch((error) => this.failActive(callId, error));
             }
             break;
           case "activity":

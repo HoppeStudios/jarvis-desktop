@@ -46,8 +46,9 @@ Optional `presenceGreeting: true` requests the fixed presence question after a
 connection. Its result separately reports `greetingPlayed` and, on verified
 playback completion, `greetingFinishedAt`. Unconfirmed playback is not a successful
 invitation and must not start an unanswered-response timer. It keeps the selected
-voice and does not insert a fake user turn. Compatibility of the fixed Realtime
-request with the Codex Live endpoint remains an installed acceptance gate.
+voice and does not insert a fake user turn. Compatibility of the fixed native
+session-context channel with the Codex Live endpoint remains an installed
+acceptance gate; the public Realtime response-creation event is not used.
 
 `settings/openJarvis` requests the existing native Live settings page without
 focusing/restoring the window. Its receipt confirms command delivery; inspect the

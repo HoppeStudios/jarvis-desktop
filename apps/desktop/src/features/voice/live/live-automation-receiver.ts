@@ -2,7 +2,7 @@ import type { LiveAutomationRequest, LiveAutomationResponse, LiveCallView } from
 
 type Controller = {
   refreshStatus: () => Promise<void>;
-  getSnapshot: () => { starting: boolean; stopping: boolean; call: LiveCallView | null };
+  getSnapshot: () => { starting: boolean; stopping: boolean; call: LiveCallView | null; errorCode?: string };
   start: (options: { requestId: string; signal: AbortSignal; workTarget?: { workSessionId: string } }) => Promise<void>;
   toggleMute: () => Promise<void>;
   presenceGreeting?: () => Promise<{ greetingPlayed: boolean; greetingFinishedAt?: number }>;
@@ -39,7 +39,7 @@ export class LiveAutomationReceiver {
       if (request.presenceGreeting) Object.assign(response, await this.controller.presenceGreeting?.() ?? { greetingPlayed: false });
       if (abort.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "LIVE_STALE_CALL" });
       const call = this.controller.getSnapshot().call;
-      if (!call || call.phase !== "connected") throw Object.assign(new Error("not connected"), { code: "LIVE_STALE_CALL" });
+      if (!call || call.phase !== "connected") throw Object.assign(new Error("not connected"), { code: this.controller.getSnapshot().errorCode ?? "LIVE_STALE_CALL" });
       response.callId = call.callId;
     } catch (error) {
       const code = (error as { code?: string; errorCode?: string })?.code ?? (error as { errorCode?: string })?.errorCode;

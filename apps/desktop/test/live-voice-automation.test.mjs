@@ -102,3 +102,11 @@ test("presence greeting runs only after real connection and reports verified pla
  await receiver.receive({requestId:randomUUID(),action:"start",presenceGreeting:true});
  assert.deepEqual(order,["connect","greet"]);assert.equal(responses[0].greetingPlayed,true);assert.equal(responses[0].greetingFinishedAt,12345);
 });
+
+test("a greeting protocol failure preserves the actual renderer error rather than reporting a stale call",async()=>{
+ let call=null,code;const responses=[];
+ const receiver=new LiveAutomationReceiver({refreshStatus:async()=>{},getSnapshot:()=>({starting:false,stopping:false,call,errorCode:code}),
+  start:async()=>{call=connected();},toggleMute:async()=>{},presenceGreeting:async()=>{code="LIVE_PROTOCOL_ERROR";call.phase="ended";return{greetingPlayed:false};}},async r=>responses.push(r));
+ await receiver.receive({requestId:randomUUID(),action:"start",presenceGreeting:true});
+ assert.equal(responses[0].errorCode,"LIVE_PROTOCOL_ERROR");
+});
