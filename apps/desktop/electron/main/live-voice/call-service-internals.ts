@@ -94,6 +94,10 @@ export type Slot = {
   connectedAt?: string;
   playbackBlocked?: boolean;
   userSpeaking: boolean;
+  lastUserSpeechAt?: number;
+  lastUserTurnAt?: number;
+  userTurnCount?: number;
+  userTurnIds?: Set<string>;
   assistantSpeaking: boolean;
   assistantPlaybackActive: boolean;
   playbackMonitorReady: boolean;

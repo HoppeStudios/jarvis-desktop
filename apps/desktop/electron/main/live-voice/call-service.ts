@@ -54,6 +54,7 @@ import { LiveWorkFeedbackManager } from "./call-service-feedback";
 import { createLiveCallSlot } from "./call-service-slot";
 import { toLiveCallView } from "./call-service-view";
 import { pushLiveTranscript } from "./call-service-transcript";
+import { noteUserSpeech, noteUserTurn } from "./call-presence";
 
 export type { LiveCallServiceDeps, LiveOwner } from "./call-service-internals";
 
@@ -232,6 +233,7 @@ export class LiveCallService {
         break;
       case "activity":
         if (report.userSpeaking !== undefined) slot.userSpeaking = report.userSpeaking;
+        if (report.userSpeaking === true) noteUserSpeech(slot, this.now());
         if (report.assistantSpeaking !== undefined) slot.assistantSpeaking = report.assistantSpeaking;
         break;
       case "playback-activity":
@@ -259,6 +261,13 @@ export class LiveCallService {
     const slot = this.requireCurrent(owner, input.callId);
     if (!Array.isArray(input.cursors) || input.cursors.length > 64) throw liveError("LIVE_PROTOCOL_ERROR");
     slot.bridge?.reportPlayback(input.cursors);
+  }
+
+  reportUserTurn(owner: LiveOwner, input: { callId: string; itemId: string }): { ok: true } {
+    const slot = this.requireCurrent(owner, input.callId);
+    if (slot.binding?.adapterId !== "codex-live" || typeof input.itemId !== "string" || !input.itemId.trim() || input.itemId.length > 256) throw liveError("LIVE_PROTOCOL_ERROR");
+    noteUserTurn(slot, input.itemId, this.now()); this.publish(slot);
+    return { ok: true };
   }
 
   getWorkContextConsent(callId: string): boolean {
@@ -609,10 +618,13 @@ export class LiveCallService {
         } catch (error) { void this.failAndCleanup(slot, error, "playback"); }
         return;
       case "transcript":
+        if (event.role === "user" && event.final && event.text.trim()) noteUserTurn(slot, event.id, this.now());
         pushLiveTranscript(slot, event, this.deps.sendTranscript, this.now);
+        if (event.role === "user") this.publish(slot);
         return;
       case "activity":
         if (event.userSpeaking !== undefined) slot.userSpeaking = event.userSpeaking;
+        if (event.userSpeaking === true) noteUserSpeech(slot, this.now());
         if (event.assistantSpeaking !== undefined) slot.assistantSpeaking = event.assistantSpeaking;
         this.publish(slot);
         this.feedback.pump(slot);

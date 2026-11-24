@@ -15,6 +15,7 @@ import { useAppStore } from "../../../stores/app-store";
 import { liveVoiceApi, liveError } from "./live-voice-api";
 import { LivePcmSession } from "./live-pcm-session";
 import pcmWorkletUrl from "./pcm-worklet.js?url";
+import { LiveAutomationReceiver } from "./live-automation-receiver";
 
 export type LiveVoiceSnapshot = {
   status: LiveStatus | null;
@@ -78,7 +79,9 @@ export class LiveCallController {
   private microphoneDeviceId: string | null = null;
 
   constructor() {
+    const automation = new LiveAutomationReceiver(this, liveVoiceApi.completeAutomation);
     this.disposers.push(
+      liveVoiceApi.onAutomationRequest((request) => { void automation.receive(request); }),
       liveVoiceApi.onView((view) => this.handleView(view)),
       liveVoiceApi.onControl((event) => this.handleControl(event)),
       liveVoiceApi.onTranscript((event) => this.handleTranscript(event.callId, event.segment)),
@@ -115,7 +118,8 @@ export class LiveCallController {
     }
   }
 
-  async start(options: { workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean } = {}): Promise<void> {
+  async start(options: { workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean; requestId?: string; signal?: AbortSignal } = {}): Promise<void> {
+    if (options.signal?.aborted) throw liveError("LIVE_STALE_CALL");
     if (this.snapshot.starting || this.snapshot.stopping || isLive(this.snapshot.call?.phase)) return;
     if (this.snapshot.call?.error?.code === "LIVE_MEDIA_RELEASE_UNCONFIRMED" || this.snapshot.errorCode === "LIVE_MEDIA_RELEASE_UNCONFIRMED") {
       this.patch({ errorCode: "LIVE_MEDIA_RELEASE_UNCONFIRMED" });
@@ -130,10 +134,12 @@ export class LiveCallController {
 
     const currentSessionId = options.workTarget?.workSessionId ?? useAppStore.getState().activeSessionId;
     const workTarget = currentSessionId ? { workSessionId: currentSessionId } : undefined;
-    const requestId = crypto.randomUUID();
+    const requestId = options.requestId ?? crypto.randomUUID();
     const resources: StartResources = { requestId, abort: new AbortController(), captureEpoch: 0, completedControlActions: new Set() };
     this.resources.set(requestId, resources);
     this.patch({ starting: true, stopping: false, errorCode: undefined, transcripts: [] });
+    const onExternalAbort = () => { if (generation === this.generation) void this.cancelStart().catch(() => undefined); };
+    options.signal?.addEventListener("abort", onExternalAbort, { once: true });
 
     let prepareRequest: ReturnType<typeof liveVoiceApi.prepare> | undefined;
     let micRequest: Promise<MediaStream> | undefined;
@@ -210,7 +216,7 @@ export class LiveCallController {
         await this.connectWebRtc(prepared.callId, resources);
       }
       if (generation !== this.generation || resources.abort.signal.aborted) throw liveError("LIVE_STALE_CALL");
-      await liveVoiceApi.reportMedia({ callId: prepared.callId, kind: "phase", phase: "connected" });
+      this.patchCallIfNewer(await liveVoiceApi.reportMedia({ callId: prepared.callId, kind: "phase", phase: "connected" }));
       this.patch({ starting: false });
       resources.heartbeat = setInterval(() => {
         void liveVoiceApi.heartbeat(prepared.callId).catch((error) => this.failActive(prepared.callId, error));
@@ -242,6 +248,7 @@ export class LiveCallController {
       this.completeResourceLifecycle(resources);
       throw error;
     } finally {
+      options.signal?.removeEventListener("abort", onExternalAbort);
       if (this.snapshot.starting && generation === this.generation && !resources.callId) this.patch({ starting: false });
     }
   }
@@ -397,6 +404,9 @@ export class LiveCallController {
             break;
           case "transcript":
             this.handleTranscript(callId, { id: event.id, role: event.role, text: event.text, final: event.final, timestamp: Date.now() });
+            if (event.role === "user" && event.final && event.text.trim()) {
+              void liveVoiceApi.reportUserTurn({ callId, itemId: event.id }).catch((error) => this.failActive(callId, error));
+            }
             break;
           case "activity":
             void liveVoiceApi.reportMedia({ callId, kind: "activity", userSpeaking: event.userSpeaking, assistantSpeaking: event.assistantSpeaking }).catch((error) => this.failActive(callId, error));

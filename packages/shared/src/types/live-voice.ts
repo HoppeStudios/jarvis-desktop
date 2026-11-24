@@ -1,6 +1,34 @@
 /** Public, secret-free contracts for the app-owned real-time voice feature. */
 import type { SessionSource } from "./sessions.js";
 
+/** Authenticated local control; media still belongs to the real main renderer. */
+export type LiveAutomationControl = {
+  requestId: string;
+  action: "start" | "toggle" | "end";
+  workSessionId?: string;
+  initialMuted?: boolean;
+  expectedCallId?: string;
+};
+export type LiveAutomationRequest = {
+  requestId: string;
+  action: "start" | "cancel";
+  workSessionId?: string;
+  initialMuted?: boolean;
+};
+export type LiveAutomationResponse = {
+  requestId: string;
+  callId?: string;
+  cancelled?: boolean;
+  errorCode?: string;
+};
+export type LiveAutomationResult = {
+  requestId: string;
+  state: "connected" | "ended" | "cancelled" | "already-ended";
+  callId?: string;
+  muted?: boolean;
+  playbackBlocked?: boolean;
+};
+
 export const LIVE_ADAPTER_IDS = [
   "codex-live",
   "gemini-live",
@@ -167,6 +195,10 @@ export type LiveCallView = {
   adapterId: LiveAdapterId;
   phase: LivePhase;
   muted: boolean;
+  /** Sticky call-local presence markers; mouse activity never updates these. */
+  lastUserSpeechAt?: number;
+  lastUserTurnAt?: number;
+  userTurnCount?: number;
   microphoneActive: boolean;
   userSpeaking: boolean;
   assistantSpeaking: boolean;

@@ -11,6 +11,8 @@ export function toLiveCallView(slot: Slot): LiveCallView {
     muted: slot.muted,
     microphoneActive: slot.microphoneActive,
     userSpeaking: slot.userSpeaking,
+    ...(slot.lastUserSpeechAt !== undefined ? { lastUserSpeechAt: slot.lastUserSpeechAt } : {}),
+    ...(slot.lastUserTurnAt !== undefined ? { lastUserTurnAt: slot.lastUserTurnAt, userTurnCount: slot.userTurnCount } : {}),
     assistantSpeaking: slot.assistantSpeaking,
     ...(slot.workBinding ? { workBinding: slot.workBinding } : {}),
     ...(slot.workOperations.length ? {

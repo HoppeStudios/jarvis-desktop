@@ -1,0 +1,159 @@
+import type { LiveAutomationControl, LiveAutomationRequest, LiveAutomationResponse, LiveAutomationResult, LiveStatus } from "@pi-desktop/shared";
+import type { LiveOwner } from "./call-service-internals";
+import { ownerKey } from "./call-service-internals";
+
+const uuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+const fail = (code: string): Error => Object.assign(new Error(code), { errorCode: code });
+const live = (call: LiveStatus["call"]): boolean => Boolean(call && !["ended", "failed"].includes(call.phase));
+
+export function parseAutomationControl(raw: unknown): LiveAutomationControl {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
+  const v = raw as Record<string, unknown>;
+  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "initialMuted", "expectedCallId"].includes(k)) ||
+    !uuid(v.requestId) || !["start", "toggle", "end"].includes(String(v.action)) ||
+    (v.workSessionId !== undefined && (typeof v.workSessionId !== "string" || !v.workSessionId.trim() || v.workSessionId.length > 256)) ||
+    (v.initialMuted !== undefined && typeof v.initialMuted !== "boolean") ||
+    (v.expectedCallId !== undefined && !uuid(v.expectedCallId))) throw fail("INVALID_PARAMS");
+  return v as LiveAutomationControl;
+}
+
+type Pending = {
+  request: LiveAutomationControl;
+  owner: LiveOwner;
+  resolve: (result: LiveAutomationResult) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+type AutomationDependencies = {
+  enabled: () => Promise<boolean>;
+  status: () => Promise<LiveStatus>;
+  owner: () => LiveOwner | null;
+  send: (owner: LiveOwner, request: LiveAutomationRequest) => void;
+  end: (owner: LiveOwner, request: { callId: string; reason: "user-ended" } | { requestId: string; reason: "user-cancelled-start" }) => Promise<unknown>;
+  timeoutMs?: number;
+};
+
+/** Main owns decisions and cancellation, never the renderer's media objects. */
+export class LiveVoiceAutomation {
+  private pending: Pending | null = null;
+  private decisions: Promise<unknown> = Promise.resolve();
+  private readonly requests = new Map<string, { fingerprint: string; promise: Promise<LiveAutomationResult> }>();
+  private readonly deps: AutomationDependencies;
+  constructor(deps: AutomationDependencies) { this.deps = deps; }
+
+  async status() {
+    await this.pruneOwner();
+    return { controlEnabled: await this.deps.enabled(), ...(await this.deps.status()), pendingRequestId: this.pending?.request.requestId ?? null };
+  }
+
+  control(raw: unknown): Promise<LiveAutomationResult> {
+    const request = parseAutomationControl(raw);
+    const fingerprint = JSON.stringify(request);
+    const prior = this.requests.get(request.requestId);
+    if (prior) return prior.fingerprint === fingerprint ? prior.promise : Promise.reject(fail("LIVE_REQUEST_CONFLICT"));
+    // Serialize only admission, not the potentially long media startup. A second
+    // wake must reach cancellation while the first request still awaits GPT.
+    const admitted = this.decisions.then(() => this.admit(request));
+    this.decisions = admitted.then(() => undefined, () => undefined);
+    const promise = admitted.then(value => value.completion);
+    this.requests.set(request.requestId, { fingerprint, promise });
+    if (this.requests.size > 128) {
+      const oldest = [...this.requests.keys()].find(id => id !== this.pending?.request.requestId);
+      if (oldest) this.requests.delete(oldest);
+    }
+    return promise;
+  }
+
+  private async admit(request: LiveAutomationControl): Promise<{ completion: Promise<LiveAutomationResult> }> {
+    await this.pruneOwner();
+    const status = await this.deps.status();
+    if (request.expectedCallId && status.call?.callId !== request.expectedCallId) throw fail("LIVE_STALE_CALL");
+    if (request.action === "end" || request.action === "toggle" && (this.pending || live(status.call))) {
+      return { completion: this.end(request, status) };
+    }
+    if (!await this.deps.enabled()) throw fail("LIVE_AUTOMATION_DISABLED");
+    if (this.pending || live(status.call)) throw fail("LIVE_ALREADY_ACTIVE");
+    if (!status.enabled) throw fail("LIVE_DISABLED");
+    const owner = this.deps.owner();
+    if (!owner) throw fail("LIVE_INVALID_OWNER");
+    const completion = new Promise<LiveAutomationResult>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const pending = this.pending;
+        if (!pending || pending.request.requestId !== request.requestId) return;
+        void this.cancelPending(pending, "LIVE_TIMEOUT").catch(() => undefined);
+      }, this.deps.timeoutMs ?? 60_000);
+      this.pending = { request, owner, resolve, reject, timer };
+      try {
+        this.deps.send(owner, { requestId: request.requestId, action: "start", workSessionId: request.workSessionId, initialMuted: request.initialMuted !== false });
+      } catch {
+        clearTimeout(timer); this.pending = null; reject(fail("LIVE_INVALID_OWNER"));
+      }
+    });
+    return { completion };
+  }
+
+  private async end(request: LiveAutomationControl, status: LiveStatus): Promise<LiveAutomationResult> {
+    const pending = this.pending;
+    if (pending) await this.cancelPending(pending);
+    if (live(status.call)) {
+      const owner = this.deps.owner();
+      if (!owner) throw fail("LIVE_INVALID_OWNER");
+      const current = await this.deps.status();
+      if (current.call?.callId === status.call!.callId && live(current.call)) {
+        await this.deps.end(owner, { callId: status.call!.callId, reason: "user-ended" });
+      } else if (live(current.call)) throw fail("LIVE_STALE_CALL");
+    }
+    const after = await this.deps.status();
+    if (after.call?.mediaRelease === "unconfirmed") throw fail("LIVE_MEDIA_RELEASE_UNCONFIRMED");
+    if (live(after.call)) throw fail("LIVE_STALE_CALL");
+    return { requestId: request.requestId, state: pending || live(status.call) ? "ended" : "already-ended", ...(after.call ? { callId: after.call.callId } : {}) };
+  }
+
+  private async pruneOwner(): Promise<void> {
+    const pending = this.pending;
+    if (!pending) return;
+    const current = this.deps.owner();
+    if (!current || ownerKey(current) !== ownerKey(pending.owner) || current.url !== pending.owner.url) {
+      await this.cancelPending(pending, "LIVE_INVALID_OWNER");
+    }
+  }
+
+  private async cancelPending(pending: Pending, errorCode?: string): Promise<void> {
+    if (this.pending !== pending) return;
+    this.pending = null; clearTimeout(pending.timer);
+    try { this.deps.send(pending.owner, { requestId: pending.request.requestId, action: "cancel" }); } catch { /* a lost renderer still needs its prepare tombstone */ }
+    try {
+      await this.deps.end(pending.owner, { requestId: pending.request.requestId, reason: "user-cancelled-start" });
+      if (errorCode) pending.reject(fail(errorCode));
+      else pending.resolve({ requestId: pending.request.requestId, state: "cancelled" });
+    } catch (error) { pending.reject(error as Error); throw error; }
+  }
+
+  async complete(owner: LiveOwner, raw: unknown): Promise<{ accepted: boolean }> {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
+    const response = raw as LiveAutomationResponse;
+    if (Object.keys(raw).some(k => !["requestId", "callId", "cancelled", "errorCode"].includes(k)) ||
+      !uuid(response.requestId) || response.callId !== undefined && !uuid(response.callId) ||
+      response.cancelled !== undefined && typeof response.cancelled !== "boolean" ||
+      response.errorCode !== undefined && !/^LIVE_[A-Z0-9_]{1,70}$/.test(response.errorCode)) throw fail("INVALID_PARAMS");
+    const pending = this.pending;
+    if (!pending || pending.request.requestId !== response.requestId) return { accepted: false };
+    if (ownerKey(owner) !== ownerKey(pending.owner) || owner.url !== pending.owner.url) throw fail("LIVE_INVALID_OWNER");
+    const status = await this.deps.status();
+    // End may have won while status was being read.
+    if (this.pending !== pending) return { accepted: false };
+    clearTimeout(pending.timer); this.pending = null;
+    if (response.errorCode || response.cancelled) {
+      try {
+        await this.deps.end(owner, { requestId: pending.request.requestId, reason: "user-cancelled-start" });
+        if (response.errorCode) pending.reject(fail(response.errorCode));
+        else pending.resolve({ requestId: response.requestId, state: "cancelled" });
+      } catch (error) { pending.reject(error as Error); throw error; }
+    } else {
+      const call = status.call;
+      if (!call || call.callId !== response.callId || call.phase !== "connected") pending.reject(fail("LIVE_STALE_CALL"));
+      else pending.resolve({ requestId: response.requestId, state: "connected", callId: call.callId, muted: call.muted, playbackBlocked: call.playbackBlocked });
+    }
+    return { accepted: true };
+  }
+}

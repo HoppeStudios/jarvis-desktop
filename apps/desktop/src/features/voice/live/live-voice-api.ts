@@ -14,6 +14,8 @@ import {
   type LiveWorkCancelQueuedOperationResult,
   type LiveWorkStopOperationResult,
   type LiveVoiceWidgetAction,
+  type LiveAutomationRequest,
+  type LiveAutomationResponse,
 } from "@pi-desktop/shared";
 import type { LiveCallView } from "@pi-desktop/shared";
 
@@ -28,12 +30,15 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
 }
 
 export const liveVoiceApi = {
+  completeAutomation: (response: LiveAutomationResponse) => invoke<{ accepted: boolean }>(IPC.invoke.liveVoiceAutomationComplete, response),
+  onAutomationRequest: (listener: (request: LiveAutomationRequest) => void) => subscribe(IPC.event.liveVoiceAutomationRequest, listener),
   status: () => invoke<LiveStatus>(IPC.invoke.liveVoiceStatus),
   prepare: (request: LivePrepareRequest) => invoke<LivePreparedCall>(IPC.invoke.liveVoicePrepare, request),
   connect: (request: LiveConnectRequest) => invoke<LiveConnectResult>(IPC.invoke.liveVoiceConnect, request),
   setMuted: (request: { callId: string; muted: boolean; captureEpoch: number }) => invoke<LiveCallView>(IPC.invoke.liveVoiceSetMuted, request),
   reportMedia: (report: LiveMediaReport) => invoke<LiveCallView>(IPC.invoke.liveVoiceReportMedia, report),
   reportPlayback: (input: { callId: string; cursors: LivePlaybackCursor[] }) => invoke<{ ok: true }>(IPC.invoke.liveVoiceReportPlayback, input),
+  reportUserTurn: (input: { callId: string; itemId: string }) => invoke<{ ok: true }>(IPC.invoke.liveVoiceReportUserTurn, input),
   reportDelegation: (request: LiveDelegationRequest) => invoke<{ accepted: boolean }>(IPC.invoke.liveVoiceReportDelegation, request),
   reportControlApplied: (input: { callId: string; actionId: string; applied: boolean; errorCode?: string }) => invoke<{ ok: true }>(IPC.invoke.liveVoiceReportControlApplied, input),
   end: (request: LiveEndRequest) => invoke<{ ok: true }>(IPC.invoke.liveVoiceEnd, request),

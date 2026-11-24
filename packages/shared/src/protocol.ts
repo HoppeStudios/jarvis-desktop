@@ -118,6 +118,10 @@ export const IPC = {
     voiceCheckPermission: "pi-desktop/voice/checkPermission",
     voiceRequestPermission: "pi-desktop/voice/requestPermission",
     liveVoiceStatus: "pi-desktop/voice/live/status",
+    liveVoiceAutomationStatus: "pi-desktop/voice/live/automation/status",
+    liveVoiceAutomationControl: "pi-desktop/voice/live/automation/control",
+    liveVoiceAutomationComplete: "pi-desktop/voice/live/automation/complete",
+    liveVoiceReportUserTurn: "pi-desktop/voice/live/reportUserTurn",
     liveVoicePrepare: "pi-desktop/voice/live/prepare",
     liveVoiceConnect: "pi-desktop/voice/live/connect",
     liveVoiceSetMuted: "pi-desktop/voice/live/setMuted",
@@ -502,6 +506,7 @@ export const IPC = {
     pluginInstallProgress: "pi-desktop/plugin/event/installProgress",
     /** Host-originated app settings mutation (e.g. plugin `app.setTheme`). */
     settingsChanged: "pi-desktop/app/event/settingsChanged",
+    liveVoiceAutomationRequest: "pi-desktop/voice/live/event/automationRequest",
     configSyncChanged: "pi-desktop/configSync/event/changed",
     /** A chat-started background task started, exited, or was stopped. */
     backgroundTasksChanged: "pi-desktop/backgroundTasks/event/changed",

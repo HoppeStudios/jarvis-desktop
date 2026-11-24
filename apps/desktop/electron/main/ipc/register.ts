@@ -550,7 +550,8 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     registerVoiceIpc({ registrar, voiceService });
   }
   if (liveCallService && liveVoiceWidget) {
-    registerLiveVoiceIpc({ registrar, service: liveCallService, getMainWindow, widget: liveVoiceWidget });
+    registerLiveVoiceIpc({ registrar, service: liveCallService, getMainWindow, widget: liveVoiceWidget,
+      automationEnabled: async () => (await getHost()?.call<{ jarvisEnabled?: boolean }>("settings.get"))?.jarvisEnabled === true });
   }
 
   registerRemoteHostIpc({ registrar });

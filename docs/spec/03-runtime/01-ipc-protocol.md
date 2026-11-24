@@ -18,6 +18,13 @@ the model's willingness to finish. Late completions cannot affect newer calls.
 Optional expectedCallId protects automatic cleanup from ending another call.
 No global input, clipboard, foreground change or provider/voice substitution.
 
+Call views expose sticky call-local `lastUserSpeechAt`, `lastUserTurnAt` and
+`userTurnCount` markers. The trusted owner reports only final nonempty Codex
+transcript item IDs through an owner-validated channel; transcript text is not
+added to MCP status. Other adapters update markers from their real wire events.
+Duplicate final IDs do not count twice. Mouse/keyboard activity cannot update
+these markers, so a short spoken reply is not lost between invitation polls.
+
 ### Jarvis initial Live queue context
 
 Local optional boolean preferences `jarvisEnabled` and `jarvisQueueEnabled` opt

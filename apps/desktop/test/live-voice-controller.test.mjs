@@ -53,6 +53,7 @@ test("renderer and Main complete a Codex Live user path without invoking an Agen
         case "pi-desktop/voice/live/setMuted": data = await service.setMuted(owner, args[0]); break;
         case "pi-desktop/voice/live/reportMedia": data = service.reportMedia(owner, args[0]); break;
         case "pi-desktop/voice/live/reportPlayback": service.reportPlayback(owner, args[0]); data = { ok: true }; break;
+        case "pi-desktop/voice/live/reportUserTurn": data = service.reportUserTurn(owner, args[0]); break;
         case "pi-desktop/voice/live/reportDelegation": data = await service.reportDelegation(owner, args[0]); break;
         case "pi-desktop/voice/live/reportControlApplied": service.reportControlApplied(owner, args[0]); data = { ok: true }; break;
         case "pi-desktop/voice/live/end": data = await service.end(owner, args[0]); break;

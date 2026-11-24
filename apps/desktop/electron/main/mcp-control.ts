@@ -221,6 +221,8 @@ const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("sessionImportRun", "session/importRun", "Import only candidates returned by the latest session scan; existing sessions are preserved.", "write", ["candidates"]),
   spec("modelConfigImportScan", "modelConfig/importScan", "Scan supported model configuration sources.", "read", []),
   spec("settingsGet", "settings/get", "Read application settings.", "read", []),
+  spec("liveVoiceAutomationStatus", "voice/status", "Read actual Live readiness, current call and pending local start.", "read", []),
+  spec("liveVoiceAutomationControl", "voice/control", "Start, toggle or end Live through its trusted renderer and normal media guards. Requires Jarvis opt-in for starts and a unique requestId; retries of that ID are idempotent.", "dangerous", ["request"]),
   spec("settingsConfigureGeneral", "settings/configureGeneral", "Configure non-secret model defaults, permission preference and background/codemode preferences through normal settings guards.", "dangerous", ["patch"]),
   spec("networkProxyTest", "network/testProxy", "Test a network proxy configuration.", "read", ["settings"]),
   spec("commandShellList", "commandShell/list", "List supported command shells.", "read", []),
@@ -452,6 +454,8 @@ const CORE_TOOL_SPECS = [
 export const MCP_CONTROL_CATALOG_CHANNEL_KEYS = CONTROL_OPERATION_SPECS.map((entry) => entry.channelKey);
 
 export const MCP_CONTROL_BLOCKED_CHANNEL_KEYS = [
+  "liveVoiceAutomationComplete",
+  "liveVoiceReportUserTurn",
   "secretsSet",
   "secretsDelete",
   "secretsHas",
