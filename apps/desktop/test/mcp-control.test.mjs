@@ -33,6 +33,35 @@ test("reviewed migration forwards only scan candidate identities to the existing
   assert.deepEqual(calls, [{ channel: "pi-desktop/session/importRun", args: [candidates] }]);
 });
 
+test("scheduled control uses existing validated handlers and requires explicit mutation acknowledgement", async () => {
+  const calls = [];
+  const channels = Object.fromEntries(["List", "ListRuns", "Create", "Update", "Delete", "Execute", "Run"]
+    .map(name => [`scheduled${name}`, `pi-desktop/scheduled/${name[0].toLowerCase()}${name.slice(1)}`]));
+  const controller = createMcpControlController({channels, invoke: async (channel, args) => {
+    calls.push({channel, args});
+    return {ok: true};
+  }});
+  assert.equal(controller.operations.some(op => op.id === "scheduled/run"), false,
+    "ledger-only admission is not exposed as task execution");
+  for (const name of ["list", "listRuns"]) {
+    assert.equal(controller.operations.find(op => op.id === `scheduled/${name}`)?.risk, "read");
+    await controller.invoke({operation: `scheduled/${name}`, args: name === "list" ? [] : [{limit: 5}]});
+  }
+  const task = {title: "maintenance", prompt: "check", enabled: false, cadence: "interval",
+    schedule: {hour: 0, minute: 0, weekday: 0, intervalMinutes: 600}};
+  for (const [name, args] of [["create", [task]], ["update", [{id: "task", enabled: true}]],
+    ["delete", ["task"]], ["execute", ["task", false]]]) {
+    const before = calls.length;
+    await assert.rejects(() => controller.invoke({operation: `scheduled/${name}`, args}),
+      error => error.code === "CONFIRMATION_REQUIRED");
+    assert.equal(calls.length, before);
+    await controller.invoke({operation: `scheduled/${name}`, args, confirm: true});
+    assert.deepEqual(calls.at(-1), {channel: `pi-desktop/scheduled/${name}`, args});
+  }
+  assert.equal(task.enabled, false);
+  assert.equal(task.schedule.intervalMinutes, 600);
+});
+
 test("the plugin and MCP paths share desktop operation validation", async () => {
   const calls = [];
   const controller = createMcpControlController({

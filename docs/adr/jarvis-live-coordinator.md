@@ -69,6 +69,15 @@ to another voice, global input or a weakened browser policy.
 
 ## Validation boundary
 
+Scheduled maintenance is controlled through the same authenticated MCP gateway
+and normal Host handlers as the native Scheduled workspace. Reads include actual
+run receipts; create/update/delete/execute require explicit operator acknowledgement.
+Execution uses the regular Agent pipeline, not the ledger-only `scheduled.run`.
+To migrate the single existing maintenance job, stage it disabled, validate the
+native execution path, pause its old registration, then enable the new task.
+Use an elapsed 600-minute interval for ten hours rather than a clock-hour cron.
+The Scheduled workspace's existing ten-second refresh reflects external edits.
+
 Unit/fixture checks establish profile construction, transport, cancellation,
 scope and persistence contracts. Actual provider connection, selected voice
 playback, microphone and double-wake behavior require installed-client evidence.
