@@ -29,6 +29,7 @@ describe("Live wire profiles", () => {
     expect(value).not.toHaveProperty("role");
   });
   it("distinguishes native frameless partial speech from final user/assistant turns", () => {
+    expect(parseCodexMessage({ type: "session.started", session: { id: "session" } })).toEqual([{ kind: "ready" }]);
     expect(parseCodexMessage({ type: "input_transcript.added", item: { text: "Já?" } })).toContainEqual(
       { kind: "transcript", role: "user", text: "Já?", final: false, delta: true, id: "codex-input" });
     const final = parseCodexMessage({ type: "turn.done", turn: { role: "assistant", transcript: "Are you present, sir?" } });

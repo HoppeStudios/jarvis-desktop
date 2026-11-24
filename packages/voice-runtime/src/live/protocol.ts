@@ -30,6 +30,7 @@ export type LiveWireEvent =
 export function parseCodexMessage(value: unknown): LiveWireEvent[] {
   const event = record(value);
   if (!event || typeof event.type !== "string") return [{ kind: "error", code: "LIVE_PROTOCOL_ERROR" }];
+  if (event.type === "session.started" || event.type === "session.updated") return [{ kind: "ready" }];
   if (event.type === "delegation.created") {
     const item = record(event.item);
     if (!item || item.type !== "delegation" || item.target !== "client") return [];

@@ -49,6 +49,17 @@ invitation and must not start an unanswered-response timer. It keeps the selecte
 voice and does not insert a fake user turn. Compatibility of the fixed native
 session-context channel with the Codex Live endpoint remains an installed
 acceptance gate; the public Realtime response-creation event is not used.
+Secret-free `greetingEvidence` separates provider readiness, request delivery,
+transcript matching, measured audio, context state and completion. No transcript
+text or credentials enter this diagnostic receipt. The invitation waits for the
+native provider's session-start event, not just an open WebRTC channel.
+
+`wake` ensures on without replacing/unmuting an existing call; `new-chat` ends the
+current call and waits for confirmed release before creating the next. A wake
+listener can attach a persistent UUID `intentId` and increasing integer
+`intentSequence` to desired-state wake/end requests. Delayed older workers return
+`superseded` instead of reopening voice after a newer off command. Ordering fields
+carry no additional permission and do not bypass normal call/owner guards.
 
 `settings/openJarvis` requests the existing native Live settings page without
 focusing/restoring the window. Its receipt confirms command delivery; inspect the

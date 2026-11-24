@@ -5,12 +5,20 @@ import { ownerKey } from "./call-service-internals";
 const uuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 const fail = (code: string): Error => Object.assign(new Error(code), { errorCode: code });
 const live = (call: LiveStatus["call"]): boolean => Boolean(call && !["ended", "failed"].includes(call.phase));
+const evidenceFlags = ["providerReady", "requestSent", "transcriptReceived", "transcriptMatches", "measuredAudio", "playbackActive", "turnComplete"];
+function validGreetingEvidence(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const value = raw as Record<string, unknown>;
+  return Object.keys(value).length === 8 && evidenceFlags.every(key => typeof value[key] === "boolean") &&
+    ["running", "suspended", "closed", "interrupted", "unavailable"].includes(String(value.contextState));
+}
 
 export function parseAutomationControl(raw: unknown): LiveAutomationControl {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
   const v = raw as Record<string, unknown>;
-  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "freshCoordinator", "initialMuted", "presenceGreeting", "expectedCallId"].includes(k)) ||
-    !uuid(v.requestId) || !["start", "toggle", "end"].includes(String(v.action)) ||
+  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "freshCoordinator", "initialMuted", "presenceGreeting", "expectedCallId", "intentId", "intentSequence"].includes(k)) ||
+    !uuid(v.requestId) || !["start", "toggle", "wake", "new-chat", "end"].includes(String(v.action)) ||
+    ((v.intentId !== undefined || v.intentSequence !== undefined) && (!uuid(v.intentId) || !Number.isSafeInteger(v.intentSequence) || Number(v.intentSequence) < 1)) ||
     (v.workSessionId !== undefined && (typeof v.workSessionId !== "string" || !v.workSessionId.trim() || v.workSessionId.length > 256)) ||
     (v.initialMuted !== undefined && typeof v.initialMuted !== "boolean") ||
     (v.presenceGreeting !== undefined && typeof v.presenceGreeting !== "boolean") ||
@@ -43,6 +51,7 @@ export class LiveVoiceAutomation {
   private pending: Pending | null = null;
   private decisions: Promise<unknown> = Promise.resolve();
   private readonly requests = new Map<string, { fingerprint: string; promise: Promise<LiveAutomationResult> }>();
+  private readonly intents = new Map<string, number>();
   private readonly deps: AutomationDependencies;
   constructor(deps: AutomationDependencies) { this.deps = deps; }
 
@@ -56,9 +65,16 @@ export class LiveVoiceAutomation {
     const fingerprint = JSON.stringify(request);
     const prior = this.requests.get(request.requestId);
     if (prior) return prior.fingerprint === fingerprint ? prior.promise : Promise.reject(fail("LIVE_REQUEST_CONFLICT"));
+    const staleIntent = Boolean(request.intentId && request.intentSequence! <= (this.intents.get(request.intentId) ?? 0));
+    if (request.intentId && request.intentSequence! > (this.intents.get(request.intentId) ?? 0)) {
+      this.intents.set(request.intentId, request.intentSequence!);
+      if (this.intents.size > 64) this.intents.delete(this.intents.keys().next().value!);
+    }
     // Serialize only admission, not the potentially long media startup. A second
     // wake must reach cancellation while the first request still awaits GPT.
-    const admitted = this.decisions.then(() => this.admit(request));
+    const admitted = this.decisions.then(() => staleIntent || request.intentId && request.intentSequence! < this.intents.get(request.intentId)!
+      ? { completion: Promise.resolve<LiveAutomationResult>({ requestId: request.requestId, state: "superseded" }) }
+      : this.admit(request));
     this.decisions = admitted.then(() => undefined, () => undefined);
     const promise = admitted.then(value => value.completion);
     this.requests.set(request.requestId, { fingerprint, promise });
@@ -71,12 +87,22 @@ export class LiveVoiceAutomation {
 
   private async admit(request: LiveAutomationControl): Promise<{ completion: Promise<LiveAutomationResult> }> {
     await this.pruneOwner();
-    const status = await this.deps.status();
+    let status = await this.deps.status();
     if (request.expectedCallId && status.call?.callId !== request.expectedCallId) throw fail("LIVE_STALE_CALL");
     if (request.action === "end" || request.action === "toggle" && (this.pending || live(status.call))) {
       return { completion: this.end(request, status) };
     }
+    if (request.action === "wake" && (this.pending || live(status.call))) {
+      const pending = this.pending && this.requests.get(this.pending.request.requestId)?.promise;
+      return { completion: pending ? pending.then(result => ({ ...result, requestId: request.requestId }))
+        : Promise.resolve({ requestId: request.requestId, state: "already-on", callId: status.call!.callId,
+          muted: status.call!.muted, playbackBlocked: status.call!.playbackBlocked }) };
+    }
     if (!await this.deps.enabled()) throw fail("LIVE_AUTOMATION_DISABLED");
+    if (request.action === "new-chat") {
+      await this.end(request, status);
+      status = await this.deps.status();
+    }
     if (this.pending || live(status.call)) throw fail("LIVE_ALREADY_ACTIVE");
     if (!status.enabled) throw fail("LIVE_DISABLED");
     const owner = this.deps.owner();
@@ -141,11 +167,12 @@ export class LiveVoiceAutomation {
   async complete(owner: LiveOwner, raw: unknown): Promise<{ accepted: boolean }> {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
     const response = raw as LiveAutomationResponse;
-    if (Object.keys(raw).some(k => !["requestId", "callId", "cancelled", "errorCode", "greetingPlayed", "greetingFinishedAt"].includes(k)) ||
+    if (Object.keys(raw).some(k => !["requestId", "callId", "cancelled", "errorCode", "greetingPlayed", "greetingFinishedAt", "greetingEvidence"].includes(k)) ||
       !uuid(response.requestId) || response.callId !== undefined && !uuid(response.callId) ||
       response.cancelled !== undefined && typeof response.cancelled !== "boolean" ||
       response.errorCode !== undefined && !/^LIVE_[A-Z0-9_]{1,70}$/.test(response.errorCode) ||
       response.greetingPlayed !== undefined && typeof response.greetingPlayed !== "boolean" ||
+      response.greetingEvidence !== undefined && !validGreetingEvidence(response.greetingEvidence) ||
       response.greetingFinishedAt !== undefined && (!Number.isFinite(response.greetingFinishedAt) || response.greetingFinishedAt <= 0 || response.greetingFinishedAt > Date.now() + 1000) ||
       response.greetingPlayed === true && response.greetingFinishedAt === undefined) throw fail("INVALID_PARAMS");
     const pending = this.pending;
@@ -167,6 +194,7 @@ export class LiveVoiceAutomation {
       else pending.resolve({ requestId: response.requestId, state: "connected", callId: call.callId, muted: call.muted, playbackBlocked: call.playbackBlocked,
         ...(pending.coordinatorSessionId ? { coordinatorSessionId: pending.coordinatorSessionId } : {}),
         ...(pending.request.presenceGreeting ? { greetingPlayed: response.greetingPlayed === true,
+          ...(response.greetingEvidence ? { greetingEvidence: response.greetingEvidence } : {}),
           ...(response.greetingPlayed && response.greetingFinishedAt ? { greetingFinishedAt: response.greetingFinishedAt } : {}) } : {}) });
     }
     return { accepted: true };

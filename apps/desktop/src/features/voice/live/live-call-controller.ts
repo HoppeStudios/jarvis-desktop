@@ -70,6 +70,7 @@ type StartResources = {
   transcripts?: CodexTranscriptAssembler;
   lastMeasuredAudioAt?: number;
   lastProviderTurnCompleteAt?: number;
+  providerReady?: boolean;
 };
 
 /** Window-lifetime owner for Live media. React subscriptions never own it. */
@@ -127,16 +128,19 @@ export class LiveCallController {
   async presenceGreeting(): Promise<PresenceGreetingResult> {
     const call = this.snapshot.call;
     const resources = call && [...this.resources.values()].find(item => item.callId === call.callId);
-    if (!call || call.adapterId !== "codex-live" || !resources || resources.channel?.readyState !== "open") return { greetingPlayed: false };
+    if (!call || call.adapterId !== "codex-live" || !resources || resources.channel?.readyState !== "open") throw liveError("LIVE_PROTOCOL_UNSUPPORTED");
     const startedAt = Date.now();
     return playPresenceGreeting({ signal: resources.abort.signal,
       state: () => ({
         connected: this.snapshot.call?.callId === call.callId && this.snapshot.call.phase === "connected",
         playbackBlocked: this.snapshot.call?.playbackBlocked === true,
+        providerReady: resources.providerReady === true,
+        transcriptReceived: this.snapshot.transcripts.some(item => item.role === "assistant" && item.timestamp >= startedAt),
         transcriptMatches: this.snapshot.transcripts.some(item => item.role === "assistant" && item.final && item.timestamp >= startedAt && /are you (?:present|there|here)[,\s]+sir/i.test(item.text)),
         measuredAudio: (resources.lastMeasuredAudioAt ?? 0) >= startedAt,
         playbackActive: resources.playbackActive === true,
         turnComplete: (resources.lastProviderTurnCompleteAt ?? 0) >= startedAt,
+        contextState: resources.context?.state ?? "unavailable",
       }),
       send: () => resources.channel!.send(codexPresenceGreetingMessage()),
     });
@@ -212,6 +216,9 @@ export class LiveCallController {
       this.patch({ status: freshStatus });
       if (generation !== this.generation || resources.abort.signal.aborted) throw liveError("LIVE_STALE_CALL");
       resources.stream = stream;
+      // Capture permission can unlock WebAudio after the initial resume attempt.
+      // This uses the granted media flow, never a synthetic gesture or policy flag.
+      void resources.context?.resume().catch(() => undefined);
       if (resources.stream.getAudioTracks().length !== 1) throw liveError("LIVE_MEDIA_UNSUPPORTED");
       await liveVoiceApi.reportMedia({ callId: prepared.callId, kind: "microphone-active", active: true });
       this.patchCallIfNewer({ callId: prepared.callId, revision: prepared.revision, bindingId: prepared.bindingId, adapterId: prepared.adapterId, phase: "acquiring-mic", muted: true, microphoneActive: true, userSpeaking: false, assistantSpeaking: false, mediaRelease: "pending" });
@@ -423,6 +430,9 @@ export class LiveCallController {
       const value: unknown = JSON.parse(raw);
       for (const event of parseCodexMessage(value)) {
         switch (event.kind) {
+          case "ready":
+            resources.providerReady = true;
+            break;
           case "delegation":
             void liveVoiceApi.reportDelegation({ callId, delegationId: event.delegationId, instruction: event.instruction }).catch((error) => this.failActive(callId, error));
             break;

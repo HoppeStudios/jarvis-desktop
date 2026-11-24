@@ -110,3 +110,25 @@ test("a greeting protocol failure preserves the actual renderer error rather tha
  await receiver.receive({requestId:randomUUID(),action:"start",presenceGreeting:true});
  assert.equal(responses[0].errorCode,"LIVE_PROTOCOL_ERROR");
 });
+
+test("out-of-order desired-state workers cannot turn voice back on after a newer end",async()=>{
+ const {state,manager}=harness();const intentId=randomUUID();
+ assert.equal((await manager.control({requestId:randomUUID(),action:"end",intentId,intentSequence:2})).state,"already-ended");
+ assert.equal((await manager.control({requestId:randomUUID(),action:"wake",intentId,intentSequence:1})).state,"superseded");
+ assert.equal((await manager.control({requestId:randomUUID(),action:"wake",intentId,intentSequence:2})).state,"superseded");
+ assert.equal(state.sent.length,0);
+});
+test("ordered end cancels an admitted wake while its provider startup is still pending",async()=>{
+ const {state,manager}=harness();const intentId=randomUUID();
+ const on=manager.control({requestId:randomUUID(),action:"wake",intentId,intentSequence:1});await waitFor(()=>state.sent.length===1);
+ assert.equal((await manager.control({requestId:randomUUID(),action:"end",intentId,intentSequence:2})).state,"ended");
+ assert.equal((await on).state,"cancelled");assert.deepEqual(state.sent.map(x=>x.request.action),["start","cancel"]);
+});
+test("ensure-on preserves an existing manual call and explicit new-chat waits for its release",async()=>{
+ const {state,manager}=harness();state.call=connected();const old=state.call.callId;
+ const ensured=await manager.control({requestId:randomUUID(),action:"wake"});assert.equal(ensured.state,"already-on");assert.equal(ensured.callId,old);
+ assert.equal(state.sent.length,0);assert.equal(state.ended.length,0);
+ const requestId=randomUUID();const started=manager.control({requestId,action:"new-chat"});await waitFor(()=>state.sent.length===1);
+ assert.equal(state.ended[0].request.callId,old);state.call=connected();await manager.complete(owner,{requestId,callId:state.call.callId});
+ assert.equal((await started).state,"connected");
+});

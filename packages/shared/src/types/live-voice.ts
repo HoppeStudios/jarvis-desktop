@@ -1,10 +1,18 @@
 /** Public, secret-free contracts for the app-owned real-time voice feature. */
 import type { SessionSource } from "./sessions.js";
+export type LiveGreetingEvidence = {
+  providerReady: boolean; requestSent: boolean; transcriptReceived: boolean;
+  transcriptMatches: boolean; measuredAudio: boolean; playbackActive: boolean;
+  turnComplete: boolean; contextState: "running" | "suspended" | "closed" | "interrupted" | "unavailable";
+};
 
 /** Authenticated local control; media still belongs to the real main renderer. */
 export type LiveAutomationControl = {
   requestId: string;
-  action: "start" | "toggle" | "end";
+  action: "start" | "toggle" | "wake" | "new-chat" | "end";
+  /** Ordered desired-state commands from one persistent wake listener. */
+  intentId?: string;
+  intentSequence?: number;
   workSessionId?: string;
   /** Create an independent coordinator; never reuse the selected draft. */
   freshCoordinator?: boolean;
@@ -27,16 +35,18 @@ export type LiveAutomationResponse = {
   errorCode?: string;
   greetingPlayed?: boolean;
   greetingFinishedAt?: number;
+  greetingEvidence?: LiveGreetingEvidence;
 };
 export type LiveAutomationResult = {
   requestId: string;
-  state: "connected" | "ended" | "cancelled" | "already-ended";
+  state: "connected" | "ended" | "cancelled" | "already-ended" | "already-on" | "superseded";
   callId?: string;
   muted?: boolean;
   playbackBlocked?: boolean;
   coordinatorSessionId?: string;
   greetingPlayed?: boolean;
   greetingFinishedAt?: number;
+  greetingEvidence?: LiveGreetingEvidence;
 };
 
 export const LIVE_ADAPTER_IDS = [

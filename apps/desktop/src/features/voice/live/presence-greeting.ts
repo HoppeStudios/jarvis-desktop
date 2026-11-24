@@ -1,6 +1,6 @@
-export type PresenceGreetingResult = { greetingPlayed: boolean; greetingFinishedAt?: number };
-type State = { connected: boolean; playbackBlocked: boolean; transcriptMatches: boolean;
-  measuredAudio: boolean; playbackActive: boolean; turnComplete: boolean };
+import type { LiveGreetingEvidence } from "@pi-desktop/shared";
+export type PresenceGreetingResult = { greetingPlayed: boolean; greetingFinishedAt?: number; greetingEvidence: LiveGreetingEvidence };
+type State = Omit<LiveGreetingEvidence, "requestSent"> & { connected: boolean; playbackBlocked: boolean };
 
 /** A bounded capability probe: a sent event alone is never successful playback. */
 export async function playPresenceGreeting(input: {
@@ -13,17 +13,26 @@ export async function playPresenceGreeting(input: {
 }): Promise<PresenceGreetingResult> {
   const now = input.now ?? Date.now;
   const wait = input.wait ?? (() => new Promise(resolve => setTimeout(resolve, 40)));
-  const initial = input.state();
-  if (input.signal.aborted || !initial.connected || initial.playbackBlocked) return { greetingPlayed: false };
-  input.send();
   const deadline = now() + (input.timeoutMs ?? 12_000);
+  let sent = false;
+  const result = (played: boolean): PresenceGreetingResult => {
+    const { connected: _connected, playbackBlocked: _blocked, ...evidence } = input.state();
+    return { greetingPlayed: played, greetingEvidence: { ...evidence, requestSent: sent },
+      ...(played ? { greetingFinishedAt: now() } : {}) };
+  };
+  while (!input.signal.aborted && now() < deadline) {
+    const state = input.state();
+    if (!state.connected || state.playbackBlocked) return result(false);
+    if (state.providerReady) { input.send(); sent = true; break; }
+    await wait();
+  }
   while (!input.signal.aborted && now() < deadline) {
     const state = input.state();
     if (!state.connected || state.playbackBlocked) break;
     if (state.transcriptMatches && state.measuredAudio && !state.playbackActive && state.turnComplete) {
-      return { greetingPlayed: true, greetingFinishedAt: now() };
+      return result(true);
     }
     await wait();
   }
-  return { greetingPlayed: false };
+  return result(false);
 }
