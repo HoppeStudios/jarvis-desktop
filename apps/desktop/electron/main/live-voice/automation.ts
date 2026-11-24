@@ -160,7 +160,8 @@ export class LiveVoiceAutomation {
     try {
       await this.deps.end(pending.owner, { requestId: pending.request.requestId, reason: "user-cancelled-start" });
       if (errorCode) pending.reject(fail(errorCode));
-      else pending.resolve({ requestId: pending.request.requestId, state: "cancelled" });
+      else pending.resolve({ requestId: pending.request.requestId, state: "cancelled",
+        ...(pending.coordinatorSessionId ? {coordinatorSessionId:pending.coordinatorSessionId} : {}) });
     } catch (error) { pending.reject(error as Error); throw error; }
   }
 
@@ -186,7 +187,8 @@ export class LiveVoiceAutomation {
       try {
         await this.deps.end(owner, { requestId: pending.request.requestId, reason: "user-cancelled-start" });
         if (response.errorCode) pending.reject(fail(response.errorCode));
-        else pending.resolve({ requestId: response.requestId, state: "cancelled" });
+        else pending.resolve({ requestId: response.requestId, state: "cancelled",
+          ...(pending.coordinatorSessionId ? {coordinatorSessionId:pending.coordinatorSessionId} : {}) });
       } catch (error) { pending.reject(error as Error); throw error; }
     } else {
       const call = status.call;

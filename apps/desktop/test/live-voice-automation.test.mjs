@@ -103,6 +103,15 @@ test("presence greeting runs only after real connection and reports verified pla
  assert.deepEqual(order,["connect","greet"]);assert.equal(responses[0].greetingPlayed,true);assert.equal(responses[0].greetingFinishedAt,12345);
 });
 
+test("cancelled fresh startup retains only its actual coordinator identity for guarded cleanup",async()=>{
+ const {state,manager}=harness({createCoordinator:async()=>"owned-empty-coordinator"});
+ const first=manager.control({requestId:randomUUID(),action:"wake",freshCoordinator:true});
+ await waitFor(()=>state.sent.length===1);
+ await manager.control({requestId:randomUUID(),action:"end"});
+ assert.equal((await first).state,"cancelled");
+ assert.equal((await first).coordinatorSessionId,"owned-empty-coordinator");
+});
+
 test("a greeting protocol failure preserves the actual renderer error rather than reporting a stale call",async()=>{
  let call=null,code;const responses=[];
  const receiver=new LiveAutomationReceiver({refreshStatus:async()=>{},getSnapshot:()=>({starting:false,stopping:false,call,errorCode:code}),
