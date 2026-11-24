@@ -64,6 +64,7 @@ type StartResources = {
   releaseFailed?: boolean;
   abort: AbortController;
   completedControlActions?: Set<string>;
+  transcriptSequence?: number;
 };
 
 /** Window-lifetime owner for Live media. React subscriptions never own it. */
@@ -403,9 +404,13 @@ export class LiveCallController {
             void liveVoiceApi.reportDelegation({ callId, delegationId: event.delegationId, instruction: event.instruction }).catch((error) => this.failActive(callId, error));
             break;
           case "transcript":
-            this.handleTranscript(callId, { id: event.id, role: event.role, text: event.text, final: event.final, timestamp: Date.now() });
+            // Legacy Codex events omit item IDs. They are distinct ordered
+            // data-channel messages, not updates to one perpetual input item.
+            const itemId = event.id === "codex-input" || event.id === "codex-output"
+              ? `${event.id}:${resources.transcriptSequence = (resources.transcriptSequence ?? 0) + 1}` : event.id;
+            this.handleTranscript(callId, { id: itemId, role: event.role, text: event.text, final: event.final, timestamp: Date.now() });
             if (event.role === "user" && event.final && event.text.trim()) {
-              void liveVoiceApi.reportUserTurn({ callId, itemId: event.id }).catch((error) => this.failActive(callId, error));
+              void liveVoiceApi.reportUserTurn({ callId, itemId }).catch((error) => this.failActive(callId, error));
             }
             break;
           case "activity":

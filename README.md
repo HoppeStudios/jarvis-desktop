@@ -37,6 +37,14 @@ Local-first · Model-agnostic · Plugin-powered · macOS / Windows / Linux
 
 </div>
 
+## HoppeStudios Jarvis fork
+
+The maintained Jarvis integration, installation requirements, native Live/MCP
+controls and current compatibility limits are documented in
+[integrations/jarvis/README.md](integrations/jarvis/README.md). Upstream features
+and documentation continue below; upstream download links are not this fork's
+customized build.
+
 > **Current release line: 0.24.x.**
 
 ---

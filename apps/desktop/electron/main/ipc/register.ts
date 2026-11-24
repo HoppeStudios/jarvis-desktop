@@ -42,6 +42,7 @@ import { registerSpeechIpc } from "./speech-ipc";
 import { registerVoiceIpc } from "./voice-ipc";
 import { registerLiveVoiceIpc } from "./live-voice-ipc";
 import type { LiveCallService } from "../live-voice/call-service";
+import { createJarvisCoordinator } from "../jarvis/coordinator";
 import type { ComposerSuggestionAnswer } from "../services/composer-suggestion";
 import type { LiveVoiceWidget } from "../live-voice/widget-window";
 import type { IpcRegistrar } from "./types";
@@ -551,7 +552,11 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
   }
   if (liveCallService && liveVoiceWidget) {
     registerLiveVoiceIpc({ registrar, service: liveCallService, getMainWindow, widget: liveVoiceWidget,
-      automationEnabled: async () => (await getHost()?.call<{ jarvisEnabled?: boolean }>("settings.get"))?.jarvisEnabled === true });
+      automationEnabled: async () => (await getHost()?.call<{ jarvisEnabled?: boolean }>("settings.get"))?.jarvisEnabled === true,
+      createCoordinator: () => createJarvisCoordinator({ dataDir,
+        settings: async () => { const host = getHost(); if (!host) throw new Error("host unavailable"); return host.call("settings.get"); },
+        invoke: invokeRegistered, createChannel: IPC.invoke.sessionCreate, configureChannel: IPC.invoke.sessionConfigure }),
+    });
   }
 
   registerRemoteHostIpc({ registrar });
@@ -578,7 +583,7 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
   registerStartupAnimationIpc({ registrar, dataDir, stripWinLongPrefix });
 
 
-  return async (channel: string, args: readonly unknown[] = []) => {
+  async function invokeRegistered(channel: string, args: readonly unknown[] = []) {
     const handler = ipcHandlers.get(channel);
     if (!handler) {
       throw Object.assign(new Error(`IPC channel is not available to external agents: ${channel}`), {
@@ -586,5 +591,6 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
       });
     }
     return handler(...args);
-  };
+  }
+  return invokeRegistered;
 }

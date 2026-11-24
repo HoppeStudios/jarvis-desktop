@@ -222,6 +222,7 @@ const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("modelConfigImportScan", "modelConfig/importScan", "Scan supported model configuration sources.", "read", []),
   spec("settingsGet", "settings/get", "Read application settings.", "read", []),
   spec("liveVoiceAutomationStatus", "voice/status", "Read actual Live readiness, current call and pending local start.", "read", []),
+  spec("jarvisSettingsOpen", "settings/openJarvis", "Navigate the main renderer to native Jarvis/Live settings without changing foreground focus. Delivery requires separate UI verification.", "write", []),
   spec("liveVoiceAutomationControl", "voice/control", "Start, toggle or end Live through its trusted renderer and normal media guards. Requires Jarvis opt-in for starts and a unique requestId; retries of that ID are idempotent.", "dangerous", ["request"]),
   spec("settingsConfigureGeneral", "settings/configureGeneral", "Configure non-secret model defaults, permission preference and background/codemode preferences through normal settings guards.", "dangerous", ["patch"]),
   spec("networkProxyTest", "network/testProxy", "Test a network proxy configuration.", "read", ["settings"]),

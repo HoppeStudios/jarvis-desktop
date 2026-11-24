@@ -27,6 +27,21 @@ End requests use the existing Main call lifecycle and media-release guards.
 Distinct repeated wake requests toggle; retried request IDs are idempotent.
 Ending during startup cancels that startup, rather than waiting for GPT.
 
+`freshCoordinator` on a start/toggle creates a separate durable Pi work chat
+through normal session IPC before opening Live. It uses the selected Codex
+binding's account and preserves the voice. Retries and toggle-off never create
+another chat. The selected busy chat and its draft remain untouched. Coordinator
+instructions live in the task-owned workspace and preserve user edits on upgrade.
+Its routine effort is `low`, the actual lowest supported GPT-6.1 Sol level.
+
+When Jarvis is enabled, normal session creation/configuration pins the coding
+model to GPT-6.1 Sol and stores Fast on, retaining an explicitly selected account
+and permission mode. New work defaults to medium; effort remains configurable.
+The runtime requests Fast only when the model advertises support; priority is a
+request, not a promise of server latency. Disabling Jarvis restores ordinary
+session configuration behavior. The native Live settings page exposes Jarvis
+opt-in, initial queue loading, and separate coordinator start/end controls.
+
 The Pi wake installation replaces the existing task-owned wake registration
 only after acceptance. The persistent queue is shared and never expires.
 Automatic invitations wait for no current call and keep a persistent checklist;

@@ -746,3 +746,18 @@ ancestor opens after a project switch, and restored local
 editing/Browser/editor detection. No model, user profile or external SSH server
 participates. Real SSH transport and native Windows/Linux behavior require
 their separate platform acceptance.
+
+## Jarvis fork acceptance
+
+- With Jarvis enabled, start a fresh coordinator from native Live settings or
+  authenticated MCP. Verify a new independent durable session, selected account
+  and voice, GPT-6.1 Sol/low/Fast/Auto, and unchanged selected busy chat/draft.
+- Retry one request ID: exactly one coordinator. Toggle again during startup:
+  startup is cancelled and media is released; no second coordinator is created.
+- Create ordinary work through UI and MCP: GPT-6.1 Sol/medium/Fast. Configure high
+  effort with Fast false: high persists, Fast stays on. Disable Jarvis and verify
+  ordinary model/Fast selection remains available. Existing tool/OS permissions
+  are never elevated by this policy.
+- Deliver two distinct legacy Codex input transcripts without item IDs: both
+  appear independently and both update user presence. Repeated identified final
+  transcripts remain deduplicated.

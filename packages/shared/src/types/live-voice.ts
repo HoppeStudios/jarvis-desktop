@@ -6,6 +6,8 @@ export type LiveAutomationControl = {
   requestId: string;
   action: "start" | "toggle" | "end";
   workSessionId?: string;
+  /** Create an independent coordinator; never reuse the selected draft. */
+  freshCoordinator?: boolean;
   initialMuted?: boolean;
   expectedCallId?: string;
 };
@@ -27,6 +29,7 @@ export type LiveAutomationResult = {
   callId?: string;
   muted?: boolean;
   playbackBlocked?: boolean;
+  coordinatorSessionId?: string;
 };
 
 export const LIVE_ADAPTER_IDS = [

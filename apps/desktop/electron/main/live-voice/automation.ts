@@ -9,11 +9,13 @@ const live = (call: LiveStatus["call"]): boolean => Boolean(call && !["ended", "
 export function parseAutomationControl(raw: unknown): LiveAutomationControl {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
   const v = raw as Record<string, unknown>;
-  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "initialMuted", "expectedCallId"].includes(k)) ||
+  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "freshCoordinator", "initialMuted", "expectedCallId"].includes(k)) ||
     !uuid(v.requestId) || !["start", "toggle", "end"].includes(String(v.action)) ||
     (v.workSessionId !== undefined && (typeof v.workSessionId !== "string" || !v.workSessionId.trim() || v.workSessionId.length > 256)) ||
     (v.initialMuted !== undefined && typeof v.initialMuted !== "boolean") ||
-    (v.expectedCallId !== undefined && !uuid(v.expectedCallId))) throw fail("INVALID_PARAMS");
+    (v.expectedCallId !== undefined && !uuid(v.expectedCallId)) ||
+    (v.freshCoordinator !== undefined && typeof v.freshCoordinator !== "boolean") ||
+    (v.freshCoordinator === true && v.workSessionId !== undefined)) throw fail("INVALID_PARAMS");
   return v as LiveAutomationControl;
 }
 
@@ -23,6 +25,7 @@ type Pending = {
   resolve: (result: LiveAutomationResult) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  coordinatorSessionId?: string;
 };
 type AutomationDependencies = {
   enabled: () => Promise<boolean>;
@@ -30,6 +33,7 @@ type AutomationDependencies = {
   owner: () => LiveOwner | null;
   send: (owner: LiveOwner, request: LiveAutomationRequest) => void;
   end: (owner: LiveOwner, request: { callId: string; reason: "user-ended" } | { requestId: string; reason: "user-cancelled-start" }) => Promise<unknown>;
+  createCoordinator?: () => Promise<string>;
   timeoutMs?: number;
 };
 
@@ -76,15 +80,19 @@ export class LiveVoiceAutomation {
     if (!status.enabled) throw fail("LIVE_DISABLED");
     const owner = this.deps.owner();
     if (!owner) throw fail("LIVE_INVALID_OWNER");
+    // Admission is serialized: no second creation on a toggle-off or retry.
+    const coordinatorSessionId = request.freshCoordinator
+      ? await this.deps.createCoordinator?.() : undefined;
+    if (request.freshCoordinator && !coordinatorSessionId) throw fail("LIVE_COORDINATOR_UNAVAILABLE");
     const completion = new Promise<LiveAutomationResult>((resolve, reject) => {
       const timer = setTimeout(() => {
         const pending = this.pending;
         if (!pending || pending.request.requestId !== request.requestId) return;
         void this.cancelPending(pending, "LIVE_TIMEOUT").catch(() => undefined);
       }, this.deps.timeoutMs ?? 60_000);
-      this.pending = { request, owner, resolve, reject, timer };
+      this.pending = { request, owner, resolve, reject, timer, coordinatorSessionId };
       try {
-        this.deps.send(owner, { requestId: request.requestId, action: "start", workSessionId: request.workSessionId, initialMuted: request.initialMuted !== false });
+        this.deps.send(owner, { requestId: request.requestId, action: "start", workSessionId: coordinatorSessionId ?? request.workSessionId, initialMuted: request.initialMuted !== false });
       } catch {
         clearTimeout(timer); this.pending = null; reject(fail("LIVE_INVALID_OWNER"));
       }
@@ -152,7 +160,8 @@ export class LiveVoiceAutomation {
     } else {
       const call = status.call;
       if (!call || call.callId !== response.callId || call.phase !== "connected") pending.reject(fail("LIVE_STALE_CALL"));
-      else pending.resolve({ requestId: response.requestId, state: "connected", callId: call.callId, muted: call.muted, playbackBlocked: call.playbackBlocked });
+      else pending.resolve({ requestId: response.requestId, state: "connected", callId: call.callId, muted: call.muted, playbackBlocked: call.playbackBlocked,
+        ...(pending.coordinatorSessionId ? { coordinatorSessionId: pending.coordinatorSessionId } : {}) });
     }
     return { accepted: true };
   }

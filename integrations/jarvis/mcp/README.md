@@ -29,3 +29,19 @@ guards and returns persisted readback. Raw settings, credentials, OAuth, voice
 bindings, network policy and computer-use grants are outside that operation.
 `auto` is the desktop's current-user permission preference, not elevation or a
 way around an MCP server's own policy or an enforced host/service approval.
+
+`voice/status` reads current Live state, sticky user presence and pending startup.
+`voice/control` takes `request` with a unique UUID `requestId`, `action`
+(`start`, `toggle`, `end`), optional `freshCoordinator`, `workSessionId`,
+`initialMuted` and `expectedCallId`. It requires `confirm: true`. Fresh coordinator
+and an explicit work session are mutually exclusive. Reuse a request ID only for
+the same retry; distinct toggles turn on/off, including cancellation during start.
+Starts require local Jarvis opt-in. Microphone stays muted unless explicitly
+requested otherwise. End may be bound to the expected call ID; media-release
+failures are errors, never a reported successful shutdown. The selected native
+account/voice and independent permissions remain unchanged. This does not yet
+install a wake listener or prove spoken wake recognition.
+
+`settings/openJarvis` requests the existing native Live settings page without
+focusing/restoring the window. Its receipt confirms command delivery; inspect the
+rendered page separately before claiming visibility.

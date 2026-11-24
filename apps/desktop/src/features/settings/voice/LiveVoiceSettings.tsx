@@ -9,6 +9,7 @@ import { SettingsCard, SettingsRow } from "../primitives";
 import { api } from "../../../lib/api";
 import { useAppStore } from "../../../stores/app-store";
 import { getLiveCallController } from "../../voice/live/live-call-controller";
+import { JarvisSettings } from "./JarvisSettings";
 
 type Adapter = LiveBinding["adapterId"];
 
@@ -209,6 +210,8 @@ export function LiveVoiceSettings({
 
   return (
     <div className="settings-stack voice-settings live-voice-settings">
+      <JarvisSettings t={t} settings={settings} saveSettings={saveSettings}
+        activeCallId={selected && !["ended", "failed"].includes(selected.phase) ? selected.callId : undefined} />
       <SettingsCard
         title={t("liveVoice.title")}
         description={t("liveVoice.description")}

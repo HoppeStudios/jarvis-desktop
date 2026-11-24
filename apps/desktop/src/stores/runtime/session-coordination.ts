@@ -319,9 +319,9 @@ export function createSessionCoordination({
       created = await api.createSession({
         title: untitledTaskTitle(),
         mode: draftConfig?.mode ?? normalizeMode(settings?.defaultMode),
-        thinkingLevel: draftConfig?.thinkingLevel ?? defaultThinkingLevel,
+        thinkingLevel: draftConfig?.thinkingLevel ?? (settings?.jarvisEnabled ? "medium" : defaultThinkingLevel),
         permissionMode: draftConfig?.permissionMode,
-        ...(draftConfig?.fastMode ? { fastMode: true } : {}),
+        ...(settings?.jarvisEnabled || draftConfig?.fastMode ? { fastMode: true } : {}),
         providerId: inherited.providerId,
         modelId: inherited.modelId,
         projectPath: projectPath ?? undefined,

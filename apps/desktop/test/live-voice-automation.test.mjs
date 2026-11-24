@@ -80,3 +80,16 @@ test("renderer refuses an already active user call rather than adopting or unmut
  const receiver=new LiveAutomationReceiver({refreshStatus:async()=>{},getSnapshot:()=>({starting:false,stopping:false,call:connected()}),start:async()=>{starts++;},toggleMute:async()=>{mutes++;}},async r=>responses.push(r));
  await receiver.receive({requestId:randomUUID(),action:"start",initialMuted:false});assert.equal(starts,0);assert.equal(mutes,0);assert.equal(responses[0].errorCode,"LIVE_ALREADY_ACTIVE");
 });
+
+test("fresh coordinator creates once on activation and never on retry or toggle off",async()=>{
+ let created=0;const {state,manager}=harness({createCoordinator:async()=>{created++;return "new-coordinator";}});
+ const input={requestId:randomUUID(),action:"toggle",freshCoordinator:true};
+ const first=manager.control(input),retry=manager.control(input);
+ await waitFor(()=>state.sent.length===1);
+ assert.equal(state.sent[0].request.workSessionId,"new-coordinator");
+ state.call=connected();await manager.complete(owner,{requestId:input.requestId,callId:state.call.callId});
+ assert.equal((await first).coordinatorSessionId,"new-coordinator");assert.deepEqual(await retry,await first);
+ await manager.control({requestId:randomUUID(),action:"toggle",freshCoordinator:true});
+ assert.equal(created,1);
+ assert.throws(()=>parseAutomationControl({...input,workSessionId:"other"}));
+});

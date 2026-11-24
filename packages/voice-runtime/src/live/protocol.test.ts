@@ -53,6 +53,10 @@ describe("Live wire profiles", () => {
   });
 
   it("keeps Codex transcripts visible and answers client delegation without granting execution", () => {
+    expect(parseCodexMessage({ type: "input_transcript.added", item_id: "turn-two", text: "Second reply" })[0])
+      .toMatchObject({ kind: "transcript", id: "turn-two", role: "user" });
+    expect(parseCodexMessage({ type: "output_transcript.added", event_id: "reply-three", text: "Third reply" })[0])
+      .toMatchObject({ kind: "transcript", id: "reply-three", role: "assistant" });
     expect(parseCodexMessage({ type: "output_transcript.added", text: "Hello there." })).toEqual([
       { kind: "transcript", role: "assistant", text: "Hello there.", final: true, id: "codex-output" },
       { kind: "activity", assistantSpeaking: true },

@@ -53,12 +53,12 @@ export function parseCodexMessage(value: unknown): LiveWireEvent[] {
   }
   if (event.type === "input_transcript.added" && typeof event.text === "string") {
     const transcript = text(event.text);
-    return transcript ? [{ kind: "transcript", role: "user", text: transcript, final: true, id: "codex-input" }] : [];
+    return transcript ? [{ kind: "transcript", role: "user", text: transcript, final: true, id: text(event.item_id, 256) || text(event.event_id, 256) || "codex-input" }] : [];
   }
   if (event.type === "output_transcript.added" && typeof event.text === "string") {
     const transcript = text(event.text);
     return [
-      ...(transcript ? [{ kind: "transcript" as const, role: "assistant" as const, text: transcript, final: true, id: "codex-output" }] : []),
+      ...(transcript ? [{ kind: "transcript" as const, role: "assistant" as const, text: transcript, final: true, id: text(event.item_id, 256) || text(event.event_id, 256) || "codex-output" }] : []),
       { kind: "activity", assistantSpeaking: true },
     ];
   }

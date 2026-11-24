@@ -20,6 +20,7 @@ export function registerLiveVoiceIpc(input: {
   /** The docked widget window: not a call owner, but allowed to drive its chrome. */
   widget: Pick<LiveVoiceWidget, "owns" | "setPresentation" | "requestAction" | "setOwnerState">;
   automationEnabled?: () => Promise<boolean>;
+  createCoordinator?: () => Promise<string>;
 }): void {
   const { registrar, service, getMainWindow, widget } = input;
   const owner = (event: IpcMainInvokeEvent): LiveOwner => {
@@ -36,8 +37,21 @@ export function registerLiveVoiceIpc(input: {
       frame.send(IPC.event.liveVoiceAutomationRequest, request);
     },
     end: (identity, request) => service.end(identity, request),
+    createCoordinator: input.createCoordinator,
   });
   registrar.handle(IPC.invoke.liveVoiceAutomationStatus, () => automation.status());
+  registrar.handle(IPC.invoke.jarvisSettingsOpen, async () => {
+    const window = getMainWindow();
+    if (!window || window.isDestroyed()) throw Object.assign(new Error("Live owner unavailable"), { errorCode: "LIVE_INVALID_OWNER" });
+    const identity = liveOwnerFromWebContents(window, window.webContents);
+    if (!identity) throw Object.assign(new Error("Live owner unavailable"), { errorCode: "LIVE_INVALID_OWNER" });
+    const frame = liveOwnerFrame(window, identity);
+    if (!frame) throw Object.assign(new Error("Live owner unavailable"), { errorCode: "LIVE_INVALID_OWNER" });
+    // Use the app's existing navigation command, without widget.requestAction's
+    // foreground handover. Delivery does not claim the page is visibly rendered.
+    frame.send(IPC.event.liveVoiceWidgetAction, { action: "settings" });
+    return { dispatched: true };
+  });
   registrar.handle(IPC.invoke.liveVoiceAutomationControl, raw => automation.control(raw));
   registrar.handleWithEvent(IPC.invoke.liveVoiceAutomationComplete, (event, raw) => automation.complete(owner(event), raw));
 

@@ -16,6 +16,8 @@ import {
   type LiveVoiceWidgetAction,
   type LiveAutomationRequest,
   type LiveAutomationResponse,
+  type LiveAutomationControl,
+  type LiveAutomationResult,
 } from "@pi-desktop/shared";
 import type { LiveCallView } from "@pi-desktop/shared";
 
@@ -30,6 +32,7 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
 }
 
 export const liveVoiceApi = {
+  controlAutomation: (request: LiveAutomationControl) => invoke<LiveAutomationResult>(IPC.invoke.liveVoiceAutomationControl, request),
   completeAutomation: (response: LiveAutomationResponse) => invoke<{ accepted: boolean }>(IPC.invoke.liveVoiceAutomationComplete, response),
   onAutomationRequest: (listener: (request: LiveAutomationRequest) => void) => subscribe(IPC.event.liveVoiceAutomationRequest, listener),
   status: () => invoke<LiveStatus>(IPC.invoke.liveVoiceStatus),

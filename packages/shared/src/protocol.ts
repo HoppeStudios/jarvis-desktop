@@ -119,6 +119,7 @@ export const IPC = {
     voiceRequestPermission: "pi-desktop/voice/requestPermission",
     liveVoiceStatus: "pi-desktop/voice/live/status",
     liveVoiceAutomationStatus: "pi-desktop/voice/live/automation/status",
+    jarvisSettingsOpen: "pi-desktop/jarvis/settings/open",
     liveVoiceAutomationControl: "pi-desktop/voice/live/automation/control",
     liveVoiceAutomationComplete: "pi-desktop/voice/live/automation/complete",
     liveVoiceReportUserTurn: "pi-desktop/voice/live/reportUserTurn",
