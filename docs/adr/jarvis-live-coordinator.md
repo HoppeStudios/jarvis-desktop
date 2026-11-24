@@ -79,3 +79,6 @@ only bounded activity flags; no samples are retained or sent to Main. This avoid
 MediaElement analyser silence and background-window animation-frame throttling.
 Only running-context measured signal counts as playback. Suspended/failed
 monitoring stays conservative, without relaxing autoplay or foreground policies.
+Both worklets must be emitted as external assets (`?url&no-inline`): a small
+processor would otherwise become a data URL, which the packaged script policy
+correctly refuses. `scripts/e2e-jarvis-assets.mjs` checks the real built output.
