@@ -259,6 +259,7 @@ const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("mcpList", "mcp/list", "List user-owned MCP servers.", "read", ["query"]),
   spec("skillList", "skill/list", "List user-owned Skills.", "read", ["query"]),
   spec("skillRead", "skill/read", "Read a user-owned Skill.", "read", ["input"]),
+  spec("skillImportRun", "skill/import", "Import explicitly selected local skill packages through normal Host validation. Existing identities are preserved; no picker or arbitrary settings write.", "dangerous", ["payload"]),
   spec("subagentList", "subagent/list", "List user-owned Subagents.", "read", ["query"]),
   spec("subagentCatalog", "subagent/catalog", "Read the effective Subagent catalog.", "read", ["query"]),
   spec("subagentRead", "subagent/read", "Read a user-owned Subagent.", "read", ["input"]),
