@@ -2,9 +2,10 @@ param([switch]$StartPaused,[switch]$Check,[string]$TestWav,[int]$TestDuration=0,
 $ErrorActionPreference='Stop'
 if($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion.Major -lt 7){throw 'Jarvis requires PowerShell 7.'}
 $appRoot=if($RootPath){[IO.Path]::GetFullPath($RootPath)}else{$PSScriptRoot}
-$sourceRoot=if(Test-Path -LiteralPath (Join-Path $appRoot 'Pi\wake')){Join-Path $appRoot 'Pi\wake'}else{$PSScriptRoot}
+$sourceRoot=if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'desktop_control.py')){$PSScriptRoot}else{Join-Path $appRoot 'Pi\wake'}
 . (Join-Path $sourceRoot 'configuration.ps1')
 . (Join-Path $sourceRoot 'commands.ps1')
+. (Join-Path $sourceRoot 'state.ps1')
 $settings=Read-JarvisSettings (Join-Path $appRoot 'settings.json')
 Add-Type -AssemblyName System.Speech
 Add-Type -AssemblyName System.Windows.Forms
@@ -24,10 +25,8 @@ $dataRoot=Join-Path $appRoot 'data';$workerRoot=Join-Path $dataRoot 'pi-workers'
 New-Item -ItemType Directory -Path $workerRoot -Force | Out-Null
 $runtime=Get-Content -LiteralPath (Join-Path $appRoot 'pi-runtime.json') -Raw | ConvertFrom-Json
 if(-not (Test-Path -LiteralPath $runtime.python -PathType Leaf)){throw 'The pinned Jarvis Python runtime is unavailable.'}
-$utf8=[Text.UTF8Encoding]::new($false)
-function Write-JsonAtomic($path,$value){$temp=$path+'.'+[guid]::NewGuid().ToString('N')+'.tmp';try{[IO.File]::WriteAllText($temp,($value|ConvertTo-Json -Depth 12 -Compress),$utf8);Move-Item -LiteralPath $temp -Destination $path -Force}finally{Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue}}
 $statePath=Join-Path $dataRoot 'pi-state.json'
-$persistent=if(Test-Path -LiteralPath $statePath){Get-Content -LiteralPath $statePath -Raw|ConvertFrom-Json -AsHashtable}else{@{intentId=[guid]::NewGuid().ToString();intentSequence=0;lastInvitation=0;paused=$false}}
+$persistent=if(Test-Path -LiteralPath $statePath){Read-JsonShared $statePath -AsHashtable}else{@{intentId=[guid]::NewGuid().ToString();intentSequence=0;lastInvitation=0;paused=$false}}
 $script:paused=$StartPaused -or [bool]$persistent.paused;$script:desired=$false;$script:call=$null;$script:lastError=$null;$script:lastOutcome=$null;$script:lastAction=$null;$script:processed=0;$script:invitation=$null;$script:lastSpeech=[DateTime]::MinValue;$script:exitRequested=$false
 $jobs=[Collections.Generic.List[object]]::new();$nextPoll=[DateTime]::MinValue;$lastStatus=[DateTime]::MinValue;$lastRecognition=$null;$lastStatusResult=$null
 $tray=[Windows.Forms.NotifyIcon]::new();$tray.Icon=[Drawing.Icon]::new((Join-Path $appRoot 'icon.ico'));$tray.Visible=$true
@@ -42,7 +41,8 @@ function Show-Error([string]$message){$script:lastError=$message;$tray.ShowBallo
 function Status {
  $tray.Text=if($script:paused){'Jarvis Pi: paused'}elseif($script:desired){'Jarvis Pi: voice requested'}else{'Jarvis Pi: listening'}
  $pauseItem.Text=if($script:paused){'Resume listening'}else{'Pause listening'}
- Write-JsonAtomic (Join-Path $dataRoot 'status.json') @{pid=$PID;state=$(if($script:paused){'paused'}else{'listening'});backend='pi-desktop';version='3.0.0';updated=[DateTime]::UtcNow.ToString('o');voiceActive=($script:call -and $script:call.phase -notin @('ended','failed'));voiceDesired=$script:desired;callId=$script:call.callId;voiceStateVerifiedAt=$lastStatusResult;pendingWorkers=$jobs.Count;lastAction=$script:lastAction;lastVoiceOutcome=$script:lastOutcome;lastError=$script:lastError;processedCommandCount=$script:processed;culture=$settings.recognizerCulture;wakePhrases=$settings.wakePhrases;monitor=$script:monitor;questionError=$script:queueError;intentSequence=$persistent.intentSequence}
+ try{Write-JsonAtomic (Join-Path $dataRoot 'status.json') @{pid=$PID;state=$(if($script:paused){'paused'}else{'listening'});backend='pi-desktop';version='3.0.0';updated=[DateTime]::UtcNow.ToString('o');voiceActive=($script:call -and $script:call.phase -notin @('ended','failed'));voiceDesired=$script:desired;callId=$script:call.callId;voiceStateVerifiedAt=$lastStatusResult;pendingWorkers=$jobs.Count;lastAction=$script:lastAction;lastVoiceOutcome=$script:lastOutcome;lastError=$script:lastError;processedCommandCount=$script:processed;culture=$settings.recognizerCulture;wakePhrases=$settings.wakePhrases;monitor=$script:monitor;questionError=$script:queueError;intentSequence=$persistent.intentSequence}}
+ catch [IO.IOException],[UnauthorizedAccessException]{if($script:lastError -ne 'Jarvis status file is locked; listening remains available.'){Show-Error 'Jarvis status file is locked; listening remains available.'}}
 }
 function Set-Paused([bool]$value){
  if($value -eq $script:paused){return}

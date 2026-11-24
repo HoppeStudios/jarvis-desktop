@@ -1,5 +1,6 @@
 param([string]$RootPath=(Join-Path $env:LOCALAPPDATA 'JarvisWake'),[string]$PythonPath,[string]$ImportDirectory,[switch]$ValidateOnly)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'state.ps1')
 $source=Split-Path $PSScriptRoot -Parent
 $root=[IO.Path]::GetFullPath($RootPath)
 if(-not (Test-Path -LiteralPath (Join-Path $root 'settings.json')) -or -not (Test-Path -LiteralPath (Join-Path $root 'Inbox\cli.mjs'))){throw 'Install the existing shared Jarvis queue and settings first. This installer never creates a second queue.'}
@@ -25,7 +26,7 @@ if($desktop.ProcessName -ine 'PI-Desktop' -or -not (Test-Path -LiteralPath $desk
 if(-not $ImportDirectory){$candidate=Join-Path $env:LOCALAPPDATA 'JarvisPi\migration\pi-import\sessions';if(Test-Path -LiteralPath $candidate -PathType Container){$ImportDirectory=$candidate}}
 if($ImportDirectory){$ImportDirectory=[IO.Path]::GetFullPath($ImportDirectory);if(-not (Test-Path -LiteralPath $ImportDirectory -PathType Container)){throw 'Configured history import folder is unavailable.'}}
 $statusPath=Join-Path $data 'status.json'
-$old=if(Test-Path -LiteralPath $statusPath){Get-Content -LiteralPath $statusPath -Raw|ConvertFrom-Json}else{$null}
+$old=if(Test-Path -LiteralPath $statusPath){Read-JsonShared $statusPath}else{$null}
 $helper=Join-Path $root 'wake.ps1'
 $owners=@(Get-CimInstance Win32_Process -Filter "Name='pwsh.exe' OR Name='powershell.exe'"|Where-Object {$_.CommandLine -like ('*'+$helper+'*') -and $_.CommandLine -notmatch '-(Check|TestWav|Trigger)'})
 if($owners.Count -gt 1){throw 'More than one listener owner exists; preserve them and resolve registration first.'}
@@ -51,7 +52,7 @@ foreach($owner in $owners){
 }
 $piRoot=Join-Path $root 'Pi';$wakeRoot=Join-Path $piRoot 'wake';$mcpRoot=Join-Path $piRoot 'mcp'
 New-Item -ItemType Directory -Path $wakeRoot,$mcpRoot -Force|Out-Null
-$files=@('commands.ps1','configuration.ps1','desktop_control.py','desktop-launch.ps1','open-settings.ps1','presence.cs','powershell.ps1','settings.ps1','settings-form.cs')
+$files=@('commands.ps1','configuration.ps1','desktop_control.py','desktop-launch.ps1','open-settings.ps1','presence.cs','powershell.ps1','settings.ps1','settings-form.cs','state.ps1')
 foreach($name in $files){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $wakeRoot $name) -Force}
 Copy-Item -LiteralPath (Join-Path $source 'mcp\stdio.py') -Destination (Join-Path $mcpRoot 'stdio.py') -Force
 foreach($name in @('wake.ps1','control.ps1','launch.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $root $name) -Force}
@@ -73,7 +74,7 @@ if($LASTEXITCODE -ne 0){throw 'Pi listener launch failed.'}
 $deadline=[DateTime]::UtcNow.AddSeconds(8);$healthy=$false
 do{
  Start-Sleep -Milliseconds 100
- if(Test-Path -LiteralPath $statusPath){$status=Get-Content -LiteralPath $statusPath -Raw|ConvertFrom-Json;$process=Get-CimInstance Win32_Process -Filter ('ProcessId='+$status.pid);if($status.backend -eq 'pi-desktop' -and $process -and $process.CommandLine -like ('*'+$helper+'*')){$healthy=$true;break}}
+ if(Test-Path -LiteralPath $statusPath){$status=Read-JsonShared $statusPath;$process=Get-CimInstance Win32_Process -Filter ('ProcessId='+$status.pid);if($status.backend -eq 'pi-desktop' -and $process -and $process.CommandLine -like ('*'+$helper+'*')){$healthy=$true;break}}
 }while([DateTime]::UtcNow -lt $deadline)
 if(-not $healthy){throw 'The installed Pi listener did not pass its running-state check.'}
 if($paused -and $status.state -ne 'paused'){throw 'Paused state was not preserved.'}
