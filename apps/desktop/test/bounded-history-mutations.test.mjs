@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import test from "node:test";
 import ts from "typescript";
+import * as jarvisExecutionPolicy from "../electron/main/jarvis/execution-policy.ts";
 import { register } from "node:module";
 import { ErrorCodes } from "../../../packages/shared/src/errors.ts";
 import { IPC, IPC_WHITELIST } from "../../../packages/shared/src/protocol.ts";
@@ -73,6 +74,7 @@ for (const outcome of ["success", "exception", "reply_started"]) {
   });
 }
 const { registerSessionIpc } = load("../electron/main/ipc/session-ipc.ts", {
+  "../jarvis/execution-policy": jarvisExecutionPolicy,
   electron: { shell: {} }, "node:fs": fs, "node:path": path, "@pi-desktop/shared": { ErrorCodes, IPC }, "../importers": {}, "../services/session-collaboration": {}, "../bootstrap/remote-hosts.js": {}, "../services/session-search": {},
 });
 function ipcHarness(pending = false, result = { ok: true }) {

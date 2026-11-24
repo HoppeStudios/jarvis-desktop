@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import * as jarvisExecutionPolicy from "../electron/main/jarvis/execution-policy.ts";
 import { IPC, ErrorCodes, isModeId } from "@pi-desktop/shared";
 
 // Execute the production registrar with only external services replaced.
@@ -12,6 +13,7 @@ const imports = {
   "@pi-desktop/shared": { IPC, ErrorCodes, isModeId }, "../importers": {},
   "../services/session-collaboration": {}, "../bootstrap/remote-hosts.js": {},
   "../services/session-search": {},
+  "../jarvis/execution-policy": jarvisExecutionPolicy,
 };
 new Function("require", "exports", "module", ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },

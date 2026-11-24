@@ -41,7 +41,7 @@ await build({
   alias: { "@pi-desktop/shared": join(root, "packages/shared/src/index.ts"), "@pi-desktop/i18n": join(root, "packages/i18n/src/index.ts"), react: join(root, "apps/desktop/node_modules/react"), "react-dom": join(root, "apps/desktop/node_modules/react-dom"), "react-i18next": join(root, "apps/desktop/node_modules/react-i18next"), i18next: join(root, "apps/desktop/node_modules/i18next") },
   loader: { ".css": "empty", ".gif": "dataurl", ".png": "dataurl" },
     plugins: [{ name: "fixture-vite-url", setup(builder) {
-      builder.onResolve({ filter: /\?url$/ }, ({ path }) => ({ path, namespace: "fixture-url" }));
+      builder.onResolve({ filter: /\?url(?:&no-inline)?$/ }, ({ path }) => ({ path, namespace: "fixture-url" }));
       builder.onLoad({ filter: /.*/, namespace: "fixture-url" }, ({ path }) => ({ contents: `export default ${JSON.stringify(path)};`, loader: "js" }));
     } }],
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },

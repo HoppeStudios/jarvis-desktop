@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import test from "node:test";
 import ts from "typescript";
+import * as jarvisExecutionPolicy from "../electron/main/jarvis/execution-policy.ts";
 import { IPC } from "../../../packages/shared/src/protocol.ts";
 import { localNativeProjectPaths } from "../electron/main/services/session-search.ts";
 
@@ -16,6 +17,7 @@ const imports = {
   "node:path": path,
   "@pi-desktop/shared": { IPC },
   "../importers": {},
+  "../jarvis/execution-policy": jarvisExecutionPolicy,
   "../services/session-collaboration": {},
   "../services/session-search": { localNativeProjectPaths },
   "../bootstrap/remote-hosts.js": { getActiveRemoteHostsBoot: () => null },
