@@ -47,10 +47,11 @@ export function registerLiveVoiceIpc(input: {
     if (!identity) throw Object.assign(new Error("Live owner unavailable"), { errorCode: "LIVE_INVALID_OWNER" });
     const frame = liveOwnerFrame(window, identity);
     if (!frame) throw Object.assign(new Error("Live owner unavailable"), { errorCode: "LIVE_INVALID_OWNER" });
-    // Use the app's existing navigation command, without widget.requestAction's
-    // foreground handover. Delivery does not claim the page is visibly rendered.
+    // Reveal a hidden tray window without the widget's foreground handover.
+    // Delivery still does not prove the settings page finished rendering.
     frame.send(IPC.event.liveVoiceWidgetAction, { action: "settings" });
-    return { dispatched: true };
+    window.showInactive();
+    return { dispatched: true, visible: window.isVisible() };
   });
   registrar.handle(IPC.invoke.liveVoiceAutomationControl, raw => automation.control(raw));
   registrar.handleWithEvent(IPC.invoke.liveVoiceAutomationComplete, (event, raw) => automation.complete(owner(event), raw));

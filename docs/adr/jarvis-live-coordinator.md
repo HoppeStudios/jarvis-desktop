@@ -82,3 +82,14 @@ monitoring stays conservative, without relaxing autoplay or foreground policies.
 Both worklets must be emitted as external assets (`?url&no-inline`): a small
 processor would otherwise become a data URL, which the packaged script policy
 correctly refuses. `scripts/e2e-jarvis-assets.mjs` checks the real built output.
+
+The Pi wake listener uses independent owned background workers, retaining the
+SAPI event loop while native media starts. It folds repeated wake events into
+desired state and persists one intent identity/increasing sequence before
+dispatch. Main rejects delayed older intents. Queue polls cannot overwrite a
+newer in-flight desired state. Read-only CoreAudio capture ownership defers
+automatic invitations while another client is active; manual voice commands
+remain explicit user actions. Paused recognition and queue state survive updates.
+Native settings navigation reveals the window with `showInactive`, never the
+widget path that transfers foreground. Receipt visibility is not rendered-page
+proof. The separate wake-settings form also avoids activation on initial show.

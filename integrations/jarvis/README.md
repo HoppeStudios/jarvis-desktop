@@ -51,9 +51,12 @@ Desktop skills. The Codex-specific Jarvis skills remain with the Codex fork.
    is idempotent; a distinct toggle is on/off. The native Settings shortcut can be
    requested with `settings/openJarvis` without foreground takeover.
 
-The wake-listener replacement, automatic GPT greeting, empty-call cleanup and
-cross-origin answer routing remain separate deployment gates. Installing the
-desktop does not yet switch an existing Codex wake listener. Initial Live context
+The [Pi wake listener](wake/README.md) has its own guarded installer and retains
+the existing Startup registration. Installing the desktop alone does not switch
+an existing Codex listener. The native GPT greeting has passed installed playback
+and cancellation checks with a muted microphone; human listening and actual
+spoken wake recognition remain separate live acceptance checks. Empty-call
+cleanup and cross-origin answer routing remain separate deployment gates. Initial Live context
 contains the real bounded queue snapshot; AGENTS.md alone cannot inject context
 into a separate realtime model. Historical imports do not resume old executions
 or move pending native approval forms.
