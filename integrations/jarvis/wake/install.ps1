@@ -1,4 +1,4 @@
-param([string]$RootPath=(Join-Path $env:LOCALAPPDATA 'JarvisWake'),[string]$PythonPath,[switch]$ValidateOnly)
+param([string]$RootPath=(Join-Path $env:LOCALAPPDATA 'JarvisWake'),[string]$PythonPath,[string]$ImportDirectory,[switch]$ValidateOnly)
 $ErrorActionPreference='Stop'
 $source=Split-Path $PSScriptRoot -Parent
 $root=[IO.Path]::GetFullPath($RootPath)
@@ -19,6 +19,11 @@ try {
  $live=$check.result
  if($live.pendingRequestId -or ($live.call -and ($live.call.phase -notin @('ended','failed') -or $live.call.mediaRelease -eq 'unconfirmed'))){throw 'Installation deferred: Pi voice is active or release is unconfirmed.'}
 }finally{Remove-Item -LiteralPath $inputFile,$outputFile -Force -ErrorAction SilentlyContinue}
+$metadata=Get-Content -LiteralPath (Join-Path $HOME '.pi-desktop\mcp-control.json') -Raw|ConvertFrom-Json
+$desktop=Get-Process -Id $metadata.pid -ErrorAction Stop
+if($desktop.ProcessName -ine 'PI-Desktop' -or -not (Test-Path -LiteralPath $desktop.Path -PathType Leaf)){throw 'The active MCP owner is not the reviewed Pi Desktop executable.'}
+if(-not $ImportDirectory){$candidate=Join-Path $env:LOCALAPPDATA 'JarvisPi\migration\pi-import\sessions';if(Test-Path -LiteralPath $candidate -PathType Container){$ImportDirectory=$candidate}}
+if($ImportDirectory){$ImportDirectory=[IO.Path]::GetFullPath($ImportDirectory);if(-not (Test-Path -LiteralPath $ImportDirectory -PathType Container)){throw 'Configured history import folder is unavailable.'}}
 $statusPath=Join-Path $data 'status.json'
 $old=if(Test-Path -LiteralPath $statusPath){Get-Content -LiteralPath $statusPath -Raw|ConvertFrom-Json}else{$null}
 $helper=Join-Path $root 'wake.ps1'
@@ -46,11 +51,11 @@ foreach($owner in $owners){
 }
 $piRoot=Join-Path $root 'Pi';$wakeRoot=Join-Path $piRoot 'wake';$mcpRoot=Join-Path $piRoot 'mcp'
 New-Item -ItemType Directory -Path $wakeRoot,$mcpRoot -Force|Out-Null
-$files=@('commands.ps1','configuration.ps1','desktop_control.py','presence.cs','powershell.ps1','settings.ps1','settings-form.cs')
+$files=@('commands.ps1','configuration.ps1','desktop_control.py','desktop-launch.ps1','open-settings.ps1','presence.cs','powershell.ps1','settings.ps1','settings-form.cs')
 foreach($name in $files){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $wakeRoot $name) -Force}
 Copy-Item -LiteralPath (Join-Path $source 'mcp\stdio.py') -Destination (Join-Path $mcpRoot 'stdio.py') -Force
 foreach($name in @('wake.ps1','control.ps1','launch.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $root $name) -Force}
-$runtime=@{backend='pi-desktop';version='3.0.0';python=$PythonPath;source='https://github.com/HoppeStudios/jarvis-desktop';installedAt=[DateTime]::UtcNow.ToString('o')}
+$runtime=@{backend='pi-desktop';version='3.0.0';python=$PythonPath;desktopExecutable=$desktop.Path;importDirectory=$ImportDirectory;source='https://github.com/HoppeStudios/jarvis-desktop';installedAt=[DateTime]::UtcNow.ToString('o')}
 [IO.File]::WriteAllText((Join-Path $root 'pi-runtime.json'),($runtime|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
 foreach($name in $files){if((Get-FileHash (Join-Path $PSScriptRoot $name)).Hash -ne (Get-FileHash (Join-Path $wakeRoot $name)).Hash){throw ('Installed hash mismatch: '+$name)}}
 foreach($name in @('wake.ps1','control.ps1','launch.ps1')){if((Get-FileHash (Join-Path $PSScriptRoot $name)).Hash -ne (Get-FileHash (Join-Path $root $name)).Hash){throw ('Installed hash mismatch: '+$name)}}
@@ -58,6 +63,11 @@ if((Get-FileHash (Join-Path $source 'mcp\stdio.py')).Hash -ne (Get-FileHash (Joi
 $startup=[Environment]::GetFolderPath('Startup');$shortcutPath=Join-Path $startup 'Jarvis Wake.lnk'
 $shell=New-Object -ComObject WScript.Shell;$shortcut=$shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath=$hostPath;$shortcut.Arguments='-STA -NoProfile -NonInteractive -WindowStyle Hidden -File "'+(Join-Path $root 'launch.ps1')+'"';$shortcut.WorkingDirectory=$root;$shortcut.IconLocation=Join-Path $root 'icon.ico';$shortcut.Save()
+$programs=[Environment]::GetFolderPath('Programs')
+$settingsShortcut=$shell.CreateShortcut((Join-Path $programs 'Jarvis Settings.lnk'))
+$settingsShortcut.TargetPath=$hostPath;$settingsShortcut.Arguments='-STA -NoProfile -NonInteractive -WindowStyle Hidden -File "'+(Join-Path $wakeRoot 'open-settings.ps1')+'"';$settingsShortcut.WorkingDirectory=$root;$settingsShortcut.IconLocation=Join-Path $root 'icon.ico';$settingsShortcut.Save()
+$guiShortcut=$shell.CreateShortcut((Join-Path $programs 'Pi - Jarvis.lnk'))
+$guiShortcut.TargetPath=$hostPath;$guiShortcut.Arguments='-STA -NoProfile -NonInteractive -WindowStyle Hidden -File "'+(Join-Path $wakeRoot 'desktop-launch.ps1')+'"';$guiShortcut.WorkingDirectory=$root;$guiShortcut.IconLocation=Join-Path $root 'icon.ico';$guiShortcut.Save()
 & $hostPath -STA -NoProfile -NonInteractive -File (Join-Path $root 'launch.ps1') -StartPaused:$paused
 if($LASTEXITCODE -ne 0){throw 'Pi listener launch failed.'}
 $deadline=[DateTime]::UtcNow.AddSeconds(8);$healthy=$false

@@ -32,6 +32,13 @@ An active/unknown call defers installation rather than being interrupted.
 preserve that selection: source synchronization of the other fork is allowed,
 installation over the selected backend is not.
 
+The same Startup entry also ensures the pinned desktop is running with local
+MCP enabled, without foreground activation. Its saved history-import directory
+is passed on every launch so imported chats remain available after reboot. Use
+`-ImportDirectory <existing-folder>` for a nondefault import location. The
+existing **Pi - Jarvis** and **Jarvis Settings** Start-menu shortcuts point to
+the GUI and its native settings rather than the old CLI/settings entry points.
+
 ## Behavior
 
 The saved wake names, command groups, confidence, silence and recognizer culture

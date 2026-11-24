@@ -1212,6 +1212,10 @@ export async function createWindow({
 
   window.once("ready-to-show", () => {
     if (!isLiveWindow()) return;
+    if (process.env.PI_DESKTOP_JARVIS_BACKGROUND === "1") {
+      window.showInactive();
+      return;
+    }
     // Capture runs need the deterministic Codex footprint; normal launches
     // must respect restored user bounds and only fix real shelf states.
     ensureStableBounds(process.env.PI_DESKTOP_CAPTURE === "1");
