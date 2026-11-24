@@ -27,6 +27,11 @@ only the task-owned listener. It pins the existing Python/PowerShell, verifies
 installed hashes, updates the same Startup shortcut and preserves paused state,
 settings and shared queue. No rollback executable or backup copy is created.
 An active/unknown call defers installation rather than being interrupted.
+After replacement health passes, only the named superseded Codex helper files
+and cached greeting are removed, when no process references them. Source history,
+the shared queue, settings, icon and compatibility launch helpers remain intact.
+Status readers share delete access; atomic writers retry brief Windows sharing
+conflicts. A locked status file cannot terminate the wake event loop.
 
 `pi-runtime.json` records selected backend ownership locally. Updaters must
 preserve that selection: source synchronization of the other fork is allowed,

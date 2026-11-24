@@ -78,6 +78,14 @@ do{
 }while([DateTime]::UtcNow -lt $deadline)
 if(-not $healthy){throw 'The installed Pi listener did not pass its running-state check.'}
 if($paused -and $status.state -ne 'paused'){throw 'Paused state was not preserved.'}
-$receipt=@{backend='pi-desktop';version='3.0.0';pid=$status.pid;startup=$shortcutPath;paused=($status.state -eq 'paused');queuePreserved=$true;filesVerified=$files.Count+4;backupCreated=$false;installedAt=[DateTime]::UtcNow.ToString('o')}
+$retired=@();$active=@(Get-CimInstance Win32_Process|Where-Object {$_.ProcessId -ne $PID -and $_.CommandLine})
+foreach($name in @('commands.ps1','configuration.ps1','voice-actions.ps1','coordinator.ps1','question-alerts.ps1','settings-launch.ps1','settings-window.ps1','install-context.ps1','install.ps1','coordinator-prompt.md','question-context.md','status-context.md','natural-context.md','voice-context.md','Greeting\greeting.wav','Greeting\greeting.json','Greeting\README.md')){
+ $path=[IO.Path]::GetFullPath((Join-Path $root $name))
+ if(-not $path.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Retirement target escaped the selected install root.'}
+ if(Test-Path -LiteralPath $path -PathType Leaf){$item=Get-Item -LiteralPath $path;$parent=Get-Item -LiteralPath $item.DirectoryName;if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint)){continue};if(@($active|Where-Object {$_.CommandLine.IndexOf($path,[StringComparison]::OrdinalIgnoreCase) -ge 0}).Count){continue};Remove-Item -LiteralPath $path -Force;$retired+=$name}
+}
+$greeting=Join-Path $root 'Greeting';if((Test-Path -LiteralPath $greeting) -and -not @(Get-ChildItem -LiteralPath $greeting -Force).Count){Remove-Item -LiteralPath $greeting}
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination (Join-Path $root 'README.md') -Force
+$receipt=@{backend='pi-desktop';version='3.0.0';pid=$status.pid;startup=$shortcutPath;paused=($status.state -eq 'paused');queuePreserved=$true;filesVerified=$files.Count+4;backupCreated=$false;retiredFiles=$retired;installedAt=[DateTime]::UtcNow.ToString('o')}
 [IO.File]::WriteAllText((Join-Path $data 'pi-installation.json'),($receipt|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
 $receipt|ConvertTo-Json -Compress
