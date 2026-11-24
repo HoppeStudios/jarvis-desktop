@@ -1511,6 +1511,15 @@ legacy `off` behavior; no database migration is required.
 ### Scheduled tasks: independent task dispatch
 
 The Electron runner admits independent due tasks without awaiting another task's prompt setup. Local in-flight ownership is keyed by task ID and Host instance until setup settles; Host remains authoritative for enabled, due and overlap checks. A replaced Host's completion cannot clear its successor's local ownership. Stop prevents new polls; admitted work keeps the existing execution/failure lifecycle. Failures remain observable and the 90-second late policy is unchanged.
+### Scheduled tasks: interval restart deadlines
+
+An armed `interval` task retains its durable `nextRunAt` across Host restarts
+while that deadline is future or no more than 90 seconds late. Repeated
+restarts must not postpone a ten-hour maintenance interval indefinitely.
+Missing, invalid or older deadlines are rearmed from restart time; missed
+occurrences do not replay or accumulate. Existing overlap/enabled checks and
+the calendar/hourly restart policy remain unchanged. No schema change is needed.
+
 ### Scheduled tasks: project removal and automations
 
 Removing a project pauses its bound scheduled tasks without deleting their definitions, schedule, workspace binding or run history. Session references in history may become null when the project's conversations are removed. Already admitted task runs block removal even before a conversation turn starts. Tasks belonging to other projects and unbound legacy tasks are unaffected. Explicit resume or Run now may recreate a project from the preserved path; automatic polling cannot do so while paused.
