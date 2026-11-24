@@ -1,5 +1,93 @@
 # 01. IPC Protocol
 
+### Authenticated local Live control
+
+`voice/status` reads actual Live readiness, the current call and a pending local
+start. `voice/control({requestId,action,workSessionId?,initialMuted?,expectedCallId?})`
+supports start/toggle/end and requires the existing MCP dangerous-operation
+acknowledgement. Starts require explicit `jarvisEnabled`; ending is still possible
+when disabled. UUID request IDs are cached for up to 128 requests in the process;
+same-ID retries are idempotent and a changed payload is a conflict.
+
+Main sends a bounded request only to its verified trusted owner frame. That
+renderer uses its normal controller, permission lease and WebRTC start path,
+then replies through sender/frame-validated completion IPC. A second toggle
+while starting cancels the exact owner/request and creates the existing prepare
+tombstone. End uses normal Main lifecycle/media-release guards, independent of
+the model's willingness to finish. Late completions cannot affect newer calls.
+Optional expectedCallId protects automatic cleanup from ending another call.
+No global input, clipboard, foreground change or provider/voice substitution.
+
+Call views expose sticky call-local `lastUserSpeechAt`, `lastUserTurnAt` and
+`userTurnCount` markers. The trusted owner reports only final nonempty Codex
+transcript item IDs through an owner-validated channel; transcript text is not
+added to MCP status. Other adapters update markers from their real wire events.
+Duplicate final IDs do not count twice. Mouse/keyboard activity cannot update
+these markers, so a short spoken reply is not lost between invitation polls.
+
+### Conditional unanswered coordinator cleanup
+
+Automatic fresh coordinator starts may pass `presenceTimeoutSeconds` (5–60,
+default ten) with `presenceGreeting: true`. Main starts a monotonic deadline
+from verified greeting completion receipt. Only `end` with an exact
+`expectedCallId` may request `cleanupUnanswered: true`. This is intent,
+not proof of emptiness. The result adds `coordinatorCleanup: deleted | deferred`.
+A successful early timeout may additionally return `invitationDeadlinePending:
+true` with `state: already-on` only while the same connected, owned, unanswered
+call is still before Main's deadline. The refusal and marker share one monotonic
+clock sample. This marker is absent on speech/work/owner refusals and errors; it
+is retry evidence, never permission to end early or delete. The listener keeps
+one in-flight invitation attempt and requires a new matching silent/current
+status poll begun after that receipt before retrying with a fresh request ID and
+sequence. Manual intent changes or possible speech cancel it; arbitrary errors
+and unmarked refusals are not retried.
+Manual End, ordinary sessions and cancelled/unverified startup are never deleted.
+`userTurnCount` is explicitly zero on call views before any actual final turn;
+missing call/presence state never proves silence.
+
+Private `session/event/cleanupRequest` and `session/cleanupResponse` IPC
+carry only Main-issued request/session IDs, observe/prepare/commit/release phase,
+readiness and a conclusive deletion result. They disclose no editor text,
+attachments, paths, queue entries or conversation history. Replies must match
+the pending nonce, phase, session and trusted owner; navigation invalidates them.
+Renderer readiness rejects selected/selecting/retained/prefilled sessions, prior
+draft history, changed revisions and any live editor owner, not just cached text.
+Local possible user speech is sticky even before its Main IPC report arrives.
+
+Main holds normal session-operation admission through Host acknowledgement.
+Selection before final renderer reservation cancels cleanup; later navigation to
+the reserved, unselected target waits and never mounts an editor for a deleted
+chat. Unknown deletion outcome keeps that reservation until a conclusive release
+or reload. Only the new automatic-cleanup path uses this reservation; normal
+session/delete refusals remain intact. Host makes the final empty-data decision
+under its lock/transaction, never from a renderer/caller boolean. Inbox state is
+not part of cleanup and is never changed.
+
+### Jarvis initial Live queue context
+
+Local optional boolean preferences `jarvisEnabled` and `jarvisQueueEnabled` opt
+into a bounded queue snapshot in the actual provider startup work profile.
+Before connecting a work-enabled call, Main discovers only the active registered
+Jarvis-Inbox server and calls `review_queue`. It includes one due unresolved
+question/report selected by the saved cursor, origin, revision and total count.
+Disabled settings do not read the queue. Reads have a four-second deadline and
+call-scoped cancellation; failure is explicit context rather than invented data.
+No presence acknowledgement, answer or queue state change occurs on startup.
+The renderer, provider selection, media lease and existing call scope are intact.
+
+### Curated local general settings control
+
+`pi-desktop/settings/configureGeneral(patch)` accepts only existing provider/model
+IDs, builtin Agent/Plan default, global permission preference, update preference,
+codemode and background continuation. Values are strictly validated; raw settings,
+secret, OAuth, voice, network and computer-use writes remain excluded from this
+operation. It delegates to the same settings apply path and active-call guards,
+then returns normalized persisted settings. The MCP operation
+`settings/configureGeneral` requires `confirm: true` as an agent acknowledgement.
+This is additive and changes neither provider credentials nor operating-system
+rights. The reviewed stdio adapter forwards the existing loopback MCP protocol;
+it does not create a second app service or a provider/account store.
+
 ### Private native window snapping
 
 `window.enableNativeSnap` is Main-to-Host only: `{nativeHandle: string, ownerPid: number}`
@@ -1179,6 +1267,9 @@ Minimal interface:
   scratch root.
 - `session/importScan -> { sessions, truncated? }`
 - `session/importRun(candidates) -> { imported, skipped, failed }`
+    The opt-in loopback MCP control catalog exposes this existing write path.
+    It accepts only identities from the latest scan and preserves existing
+    imports; it does not accept client-supplied file paths or transcript data.
 - `modelConfig/importScan -> { providers }`
 - `modelConfig/importRun(candidates) -> { imported, skipped, failed }`
 
@@ -2773,3 +2864,21 @@ window, and the owner's own failure code arrives through the main window, which
 is the frame that ran the action. A widget action never changes call state by
 itself: it is forwarded to the owner frame, and the resulting state reaches the
 widget through the same authoritative view the owner receives.
+
+### Composer draft metadata for maintenance
+
+`appComposerDraftStatus` reads a fresh main-renderer observation. Main issues a
+single-use random nonce through `composerDraftStatusRequest`; only the trusted
+main frame can answer `appComposerDraftStatusResponse` with that nonce and
+bounded counts: `cachedDrafts`, `liveDrafts`, `busyEditors`, `unknownEditors`,
+and boolean `pendingPrefill`. No draft text, IDs or attachment paths cross this
+channel. Counts include inactive cached drafts and unsaved DOM content; focus,
+composition, attachment preparation and pending prefills prevent an empty result.
+
+Main binds requests to the exact frame/URL and invalidates them on navigation,
+renderer loss or replacement. Timeouts, missing readers and malformed replies
+never report empty. The external MCP exposes only `app/composerDraftStatus`
+as a read; its internal response channel is not callable through MCP.
+`known: true, empty: true` is a past observation, not a shutdown reservation.
+Installers must separately establish idle work/calls and prevent input races;
+this read alone never authorizes termination or bypasses a refusal.

@@ -31,6 +31,7 @@ import {
   snapshotComposerDraft,
   writeComposerDraft,
   markComposerDraftEdited,
+  registerLiveComposerDraft,
 } from "../../../../lib/composer-draft-cache";
 import {
   editorSelectionRange,
@@ -167,6 +168,18 @@ export function useComposerDraft({
   const ref = useRef<HTMLDivElement>(null);
   const placeholderContextRef = useRef(`${variant}:${activeSessionId ?? HOME_DRAFT_KEY}`);
   const draftKeyRef = useRef(draftKey);
+  const renderedDraftKeyRef = useRef(draftKey);
+  renderedDraftKeyRef.current = draftKey;
+  const pendingPrefillRef = useRef(false);
+  pendingPrefillRef.current = Boolean(prefill || composerPrefill);
+  useLayoutEffect(() => registerLiveComposerDraft(() =>
+    [draftKeyRef.current, renderedDraftKeyRef.current], () => {
+      const element = ref.current;
+      if (!element) return "unknown";
+      if (composingRef.current || pendingPrefillRef.current || element.getAttribute("aria-busy") === "true" ||
+          element.contains(document.activeElement)) return "busy";
+      return readEditorValue(element).length || fileReferencesRef.current.length ? "nonempty" : "empty";
+    }), []);
   const workspacePathRef = useRef(workspacePath);
   workspacePathRef.current = workspacePath;
   const previousWorkspacePathRef = useRef(initialDraft?.workspacePath ?? workspacePath);
@@ -182,7 +195,9 @@ export function useComposerDraft({
   const valueRef = useRef(value);
   valueRef.current = value;
   const compositionRef = useRef<{ draftKey: string; empty: boolean } | null>(null);
+  const composingRef = useRef(false);
   const setComposing = (next: boolean) => {
+    composingRef.current = next;
     if (next) {
       compositionRef.current = { draftKey: draftKeyRef.current, empty: valueRef.current === "" };
     }

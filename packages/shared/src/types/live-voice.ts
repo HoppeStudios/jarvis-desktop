@@ -1,5 +1,67 @@
 /** Public, secret-free contracts for the app-owned real-time voice feature. */
+export type SessionCleanupRequest = {
+  requestId: string;
+  sessionId: string;
+  phase: "observe" | "prepare" | "commit" | "release";
+  deleted?: boolean;
+};
+export type SessionCleanupResponse = Pick<SessionCleanupRequest, "requestId" | "sessionId" | "phase"> & { ready: boolean };
 import type { SessionSource } from "./sessions.js";
+export type LiveGreetingEvidence = {
+  providerReady: boolean; requestSent: boolean; transcriptReceived: boolean;
+  transcriptMatches: boolean; measuredAudio: boolean; playbackActive: boolean;
+  turnComplete: boolean; contextState: "running" | "suspended" | "closed" | "interrupted" | "unavailable";
+};
+
+/** Authenticated local control; media still belongs to the real main renderer. */
+export type LiveAutomationControl = {
+  requestId: string;
+  action: "start" | "toggle" | "wake" | "new-chat" | "end";
+  /** Ordered desired-state commands from one persistent wake listener. */
+  intentId?: string;
+  intentSequence?: number;
+  workSessionId?: string;
+  /** Create an independent coordinator; never reuse the selected draft. */
+  freshCoordinator?: boolean;
+  initialMuted?: boolean;
+  /** Fixed presence invitation after a verified connection; never arbitrary speech. */
+  presenceGreeting?: boolean;
+  /** Automatic invitation deadline, 5–60 seconds after verified playback receipt. */
+  presenceTimeoutSeconds?: number;
+  expectedCallId?: string;
+  /** Timeout of a verified automatic invitation, not manual End. */
+  cleanupUnanswered?: boolean;
+};
+export type LiveAutomationRequest = {
+  requestId: string;
+  action: "start" | "cancel";
+  workSessionId?: string;
+  initialMuted?: boolean;
+  presenceGreeting?: boolean;
+};
+export type LiveAutomationResponse = {
+  requestId: string;
+  callId?: string;
+  cancelled?: boolean;
+  errorCode?: string;
+  greetingPlayed?: boolean;
+  greetingFinishedAt?: number;
+  greetingEvidence?: LiveGreetingEvidence;
+};
+export type LiveAutomationResult = {
+  requestId: string;
+  state: "connected" | "ended" | "cancelled" | "already-ended" | "already-on" | "superseded";
+  callId?: string;
+  muted?: boolean;
+  playbackBlocked?: boolean;
+  coordinatorSessionId?: string;
+  coordinatorCleanup?: "deleted" | "deferred";
+  /** Positive timeout-retry evidence, never a generic refusal or emptiness proof. */
+  invitationDeadlinePending?: true;
+  greetingPlayed?: boolean;
+  greetingFinishedAt?: number;
+  greetingEvidence?: LiveGreetingEvidence;
+};
 
 export const LIVE_ADAPTER_IDS = [
   "codex-live",
@@ -167,6 +229,10 @@ export type LiveCallView = {
   adapterId: LiveAdapterId;
   phase: LivePhase;
   muted: boolean;
+  /** Sticky call-local presence markers; mouse activity never updates these. */
+  lastUserSpeechAt?: number;
+  lastUserTurnAt?: number;
+  userTurnCount?: number;
   microphoneActive: boolean;
   userSpeaking: boolean;
   assistantSpeaking: boolean;

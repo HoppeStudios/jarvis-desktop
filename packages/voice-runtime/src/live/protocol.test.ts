@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   codexDelegationFeedback,
   codexWorkFeedbackMessage,
+  codexPresenceGreetingMessage,
   geminiSetupMessage,
   geminiToolResponseMessage,
   geminiWorkFeedbackMessage,
@@ -20,6 +21,24 @@ import {
 } from "./protocol.js";
 
 describe("Live wire profiles", () => {
+  it("uses the native Codex Host-context invitation without a fake user or public response.create", () => {
+    const value = JSON.parse(codexPresenceGreetingMessage());
+    expect(value).toMatchObject({ type: "session.context.append", channel: "speakable" });
+    expect(value.content[0]).toMatchObject({ type: "input_text", text: expect.stringContaining("not a human reply") });
+    expect(new TextEncoder().encode(value.content[0].text).byteLength).toBeLessThan(500);
+    expect(value).not.toHaveProperty("role");
+  });
+  it("distinguishes native frameless partial speech from final user/assistant turns", () => {
+    expect(parseCodexMessage({ type: "session.started", session: { id: "session" } })).toEqual([{ kind: "ready" }]);
+    expect(parseCodexMessage({ type: "input_transcript.added", item: { text: "Já?" } })).toContainEqual(
+      { kind: "transcript", role: "user", text: "Já?", final: false, delta: true, id: "codex-input" });
+    const final = parseCodexMessage({ type: "turn.done", turn: { role: "assistant", transcript: "Are you present, sir?" } });
+    expect(final[0]).toMatchObject({ kind: "transcript", role: "assistant", final: true });
+    expect(final).toContainEqual({ kind: "turn-complete" });
+    const user = parseCodexMessage({ type: "turn.done", turn: { role: "user", transcript: "Ano" } });
+    expect(user[0]).toMatchObject({ kind: "transcript", role: "user", final: true });
+    expect(user).not.toContainEqual({ kind: "turn-complete" });
+  });
   it("encodes bounded Host work feedback without reusing function receipts", () => {
     const feedback = {
       feedbackId: "feedback-1",
@@ -53,6 +72,12 @@ describe("Live wire profiles", () => {
   });
 
   it("keeps Codex transcripts visible and answers client delegation without granting execution", () => {
+    expect(parseCodexMessage({ type: "input_transcript.added", item_id: "turn-two", text: "Second reply" })[0])
+      .toMatchObject({ kind: "transcript", id: "turn-two", role: "user" });
+    expect(parseCodexMessage({ type: "output_transcript.added", event_id: "reply-three", text: "Third reply" })[0])
+      .toMatchObject({ kind: "transcript", id: "reply-three", role: "assistant" });
+    expect(parseCodexMessage({ type: "response.output_audio_transcript.done", item_id: "greeting", transcript: "Are you present, sir?" })[0])
+      .toMatchObject({ kind: "transcript", id: "greeting", role: "assistant", final: true });
     expect(parseCodexMessage({ type: "output_transcript.added", text: "Hello there." })).toEqual([
       { kind: "transcript", role: "assistant", text: "Hello there.", final: true, id: "codex-output" },
       { kind: "activity", assistantSpeaking: true },

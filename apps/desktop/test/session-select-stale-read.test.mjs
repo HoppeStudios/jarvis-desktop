@@ -6,6 +6,7 @@ const { createSessionSlice } = await import("../src/stores/slices/session-slice.
 const { createSessionCoordination } = await import("../src/stores/runtime/session-coordination.ts");
 const { createSessionRuntime } = await import("../src/stores/runtime/session-runtime.ts");
 const { api } = await import("../src/lib/api.ts");
+const { SessionCleanupReadiness, installSessionCleanupReadiness } = await import("../src/lib/session-cleanup-readiness.ts");
 const { withoutRecordKey } = await import("../src/stores/helpers/store-helpers.ts");
 
 function buildStore() {
@@ -39,6 +40,30 @@ function buildStore() {
   const slice = createSessionSlice({ ...access, runtime, ...coordination });
   return { stateRef: () => state, runtime, slice };
 }
+
+test("real selection cancels pending cleanup and cannot mount an already reserved coordinator", async t => {
+  const { stateRef, slice } = buildStore();
+  stateRef().activeSessionId = "other";
+  stateRef().composerPrefill = null;
+  const readiness = new SessionCleanupReadiness(stateRef);
+  const uninstall = installSessionCleanupReadiness(readiness);
+  t.after(uninstall);
+  let reads = 0;
+  t.mock.method(api, "getSession", async () => { reads++; return {session:{id:"session",messages:[]}}; });
+  const request = phase => ({requestId:"lease",sessionId:"session",phase});
+  readiness.receive(request("observe"));
+  readiness.receive(request("prepare"));
+  readiness.receive(request("commit"));
+  const selection = slice.selectSession("session");
+  await Promise.resolve();
+  assert.equal(stateRef().activeSessionId,"other");
+  assert.equal(stateRef().selectingSessionId,undefined);
+  assert.equal(reads,0,"no detail load or provisional composer mount before admission");
+  readiness.receive({...request("release"),deleted:true});
+  await selection;
+  assert.equal(stateRef().activeSessionId,"other");
+  assert.equal(reads,0);
+});
 
 test("a warm re-select does not commit a detail window a concurrent idle edit superseded", async t => {
   const stored = { id: "answer", role: "assistant", content: "before edit" };

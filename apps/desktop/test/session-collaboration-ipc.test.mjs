@@ -5,6 +5,7 @@ import * as path from "node:path";
 import i18n from "i18next";
 import test from "node:test";
 import ts from "typescript";
+import * as jarvisExecutionPolicy from "../electron/main/jarvis/execution-policy.ts";
 import { ErrorCodes } from "../../../packages/shared/src/errors.ts";
 import { IPC, IPC_WHITELIST } from "../../../packages/shared/src/protocol.ts";
 
@@ -34,6 +35,7 @@ const { registerSessionIpc } = load("../electron/main/ipc/session-ipc.ts", {
   "node:path": path,
   "@pi-desktop/shared": shared,
   "../importers": {},
+  "../jarvis/execution-policy": jarvisExecutionPolicy,
   "../services/session-collaboration": collaboration,
   "../bootstrap/remote-hosts.js": { getActiveRemoteHostsBoot: () => null },
   "../services/session-search": { searchSessionsAcrossSources: async () => ({ hits: [], nextOffset: null }) },

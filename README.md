@@ -1,3 +1,13 @@
+## HoppeStudios Jarvis fork
+
+This fork contains the Pi Desktop Jarvis integration. Start with the
+[installation requirements and setup](integrations/jarvis/README.md),
+[wake listener](integrations/jarvis/wake/README.md),
+[local MCP server](integrations/jarvis/mcp/README.md) and
+[history import](integrations/jarvis/history/README.md). The independent Codex
+Mini implementation remains in [jarvis-codex](https://github.com/HoppeStudios/jarvis-codex).
+Upstream downloads below do not contain this fork's Jarvis changes.
+
 <div align="center">
 
 <img src="docs/public/readme/logo.png" alt="PI-Desktop" width="108" />
@@ -36,6 +46,14 @@ Local-first · Model-agnostic · Plugin-powered · macOS / Windows / Linux
 **Your projects stay local · Your models stay replaceable · Your workspace stays yours**
 
 </div>
+
+## HoppeStudios Jarvis fork
+
+The maintained Jarvis integration, installation requirements, native Live/MCP
+controls and current compatibility limits are documented in
+[integrations/jarvis/README.md](integrations/jarvis/README.md). Upstream features
+and documentation continue below; upstream download links are not this fork's
+customized build.
 
 > **Current release line: 0.24.x.**
 

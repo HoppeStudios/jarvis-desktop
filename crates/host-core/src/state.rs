@@ -50,6 +50,8 @@ pub struct AppState {
     pub config_sync_in_progress: Arc<AtomicBool>,
     pub started_at: Instant,
     pub handshook: bool,
+    /// Main-created automatic coordinators; never reconstructed by title.
+    pub(crate) jarvis_cleanup_owners: HashMap<String, (String, String)>,
     pub shutting_down: bool,
     /// session_id -> toolName grants
     pub session_grants: HashMap<String, Vec<String>>,
@@ -177,6 +179,7 @@ impl AppState {
             background_tasks: crate::background_tasks::BackgroundTaskRegistry::default(),
             started_at: Instant::now(),
             handshook: false,
+            jarvis_cleanup_owners: HashMap::new(),
             shutting_down: false,
             session_grants: HashMap::new(),
             plugin_execs: HashMap::new(),

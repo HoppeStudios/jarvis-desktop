@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as jarvisExecutionPolicy from "../electron/main/jarvis/execution-policy.ts";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import test from "node:test";
@@ -58,6 +59,7 @@ function buildHarness({ hostCall, sidecarCall }) {
     "../importers": {},
     "../services/session-collaboration": {},
     "../bootstrap/remote-hosts.js": { getActiveRemoteHostsBoot: () => null },
+    "../jarvis/execution-policy": jarvisExecutionPolicy,
     "../services/session-search": {
       searchSessionsAcrossSources: async () => ({ hits: [], nextOffset: null }),
     },

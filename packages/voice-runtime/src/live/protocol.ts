@@ -17,7 +17,7 @@ export type LocalDeliveryReceipt =
 export type LiveWireEvent =
   | { kind: "ready" }
   | { kind: "audio"; bytes: Uint8Array; responseId?: string; itemId?: string; contentIndex?: number }
-  | { kind: "transcript"; role: "user" | "assistant"; text: string; final: boolean; id: string }
+  | { kind: "transcript"; role: "user" | "assistant"; text: string; final: boolean; id: string; delta?: boolean }
   | { kind: "activity"; userSpeaking?: boolean; assistantSpeaking?: boolean }
   | { kind: "interrupted" }
   | { kind: "turn-complete" }
@@ -30,6 +30,7 @@ export type LiveWireEvent =
 export function parseCodexMessage(value: unknown): LiveWireEvent[] {
   const event = record(value);
   if (!event || typeof event.type !== "string") return [{ kind: "error", code: "LIVE_PROTOCOL_ERROR" }];
+  if (event.type === "session.started" || event.type === "session.updated") return [{ kind: "ready" }];
   if (event.type === "delegation.created") {
     const item = record(event.item);
     if (!item || item.type !== "delegation" || item.target !== "client") return [];
@@ -45,24 +46,54 @@ export function parseCodexMessage(value: unknown): LiveWireEvent[] {
   if (event.type === "error") return [{ kind: "error", code: "LIVE_PROTOCOL_ERROR" }];
   if (event.type === "input_audio_buffer.speech_started") return [{ kind: "activity", userSpeaking: true }];
   if (event.type === "input_audio_buffer.speech_stopped") return [{ kind: "activity", userSpeaking: false }];
+  // Codex's frameless AVAS wire has item.text deltas and a separate final
+  // turn.transcript. These are not the public Realtime flat transcript events.
+  if (event.type === "turn.done") {
+    const turn = record(event.turn);
+    if (turn?.role === "user" || turn?.role === "assistant") {
+      const transcript = text(turn.transcript);
+      const role: "user" | "assistant" = turn.role;
+      return [
+        ...(transcript ? [{ kind: "transcript" as const, role, text: transcript, final: true, id: role === "user" ? "codex-input" : "codex-output" }] : []),
+        ...(role === "assistant" ? [{ kind: "turn-complete" as const }] : []),
+        { kind: "activity", ...(role === "user" ? { userSpeaking: false } : { assistantSpeaking: false }) },
+      ];
+    }
+  }
   if (["output_audio_buffer.started", "response.output_audio.delta", "response.audio.delta"].includes(event.type)) {
     return [{ kind: "activity", assistantSpeaking: true }];
   }
   if (["output_audio_buffer.stopped", "turn.done", "response.done"].includes(event.type)) {
     return [{ kind: "turn-complete" }, { kind: "activity", assistantSpeaking: false }];
   }
-  if (event.type === "input_transcript.added" && typeof event.text === "string") {
-    const transcript = text(event.text);
-    return transcript ? [{ kind: "transcript", role: "user", text: transcript, final: true, id: "codex-input" }] : [];
+  if (["input_transcript.added", "conversation.item.input_audio_transcription.completed"].includes(event.type)) {
+    const item = record(event.item);
+    if (typeof item?.text === "string") {
+      const transcript = text(item.text);
+      return transcript ? [{ kind: "activity", userSpeaking: true }, { kind: "transcript", role: "user", text: transcript, final: false, delta: true, id: "codex-input" }] : [];
+    }
+    const transcript = text(event.text ?? event.transcript);
+    return transcript ? [{ kind: "transcript", role: "user", text: transcript, final: true, id: text(event.item_id, 256) || text(event.event_id, 256) || "codex-input" }] : [];
   }
-  if (event.type === "output_transcript.added" && typeof event.text === "string") {
-    const transcript = text(event.text);
+  if (["output_transcript.added", "response.output_audio_transcript.done", "response.audio_transcript.done"].includes(event.type)) {
+    const item = record(event.item);
+    if (typeof item?.text === "string") {
+      const transcript = text(item.text);
+      return transcript ? [{ kind: "transcript", role: "assistant", text: transcript, final: false, delta: true, id: "codex-output" }, { kind: "activity", assistantSpeaking: true }] : [];
+    }
+    const transcript = text(event.text ?? event.transcript);
     return [
-      ...(transcript ? [{ kind: "transcript" as const, role: "assistant" as const, text: transcript, final: true, id: "codex-output" }] : []),
+      ...(transcript ? [{ kind: "transcript" as const, role: "assistant" as const, text: transcript, final: true, id: text(event.item_id, 256) || text(event.event_id, 256) || "codex-output" }] : []),
       { kind: "activity", assistantSpeaking: true },
     ];
   }
   return [];
+}
+
+/** Fixed Host invitation over Codex's native frameless context channel. */
+export function codexPresenceGreetingMessage(): string {
+  return JSON.stringify({ type: "session.context.append", channel: "speakable",
+    content: [{ type: "input_text", text: "Host invitation, not a human reply: Say exactly 'Are you present, sir?' and wait silently. Do not acknowledge presence, call tools or review queued items yet." }] });
 }
 
 export function codexDelegationFeedback(delegationId: string, receipt?: {

@@ -9,7 +9,10 @@ import type {
 } from "./types";
 import { importedSessionId, toIso, truncateTitle } from "./types";
 
-const SESSIONS_DIR = path.join(os.homedir(), ".pi", "agent", "sessions");
+// Explicit launch-time archive root affects import discovery only.
+const SESSIONS_DIR = process.env.PI_DESKTOP_PI_IMPORT_DIR
+  ? path.resolve(process.env.PI_DESKTOP_PI_IMPORT_DIR)
+  : path.join(os.homedir(), ".pi", "agent", "sessions");
 
 interface PiEntry {
   type?: string;
@@ -161,6 +164,13 @@ export const piImporter: SessionImporter = {
             pendingCalls.set(b.id, { name: b.name, args: b.arguments });
           }
         }
+      } else if (msg.role === "custom" && Reflect.get(msg, "customType") === "codex-history") {
+        const text = contentText(msg.content);
+        if (text) messages.push({
+          id: crypto.randomUUID(), role: "assistant",
+          content: `[Imported historical activity; not an execution request]\n${text}`,
+          createdAt, status: "complete",
+        });
       } else if (msg.role === "toolResult" && msg.toolCallId) {
         const pending = pendingCalls.get(msg.toolCallId);
         pendingCalls.delete(msg.toolCallId);

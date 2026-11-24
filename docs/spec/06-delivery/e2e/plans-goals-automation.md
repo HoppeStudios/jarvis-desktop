@@ -3,6 +3,20 @@
 > Part of the [E2E test plan](../04-e2e-test-plan.md). Plan mode, goals, user-defined modes, and scheduled tasks.
 > Scenario template, gates, and traceability live in the plan.
 
+## E2E-SCHEDULED-interval-restart-deadline
+
+- **Steps:** Arm an interval task for 600 minutes in an isolated Host profile;
+  record its deadline, stop/start the Host twice and list it again. Repeat with
+  a due deadline within the 90-second admission window and a stale deadline.
+- **Expected:** Future and just-due interval deadlines remain identical across
+  restarts. Polling admits at most one run and never overlaps active work.
+  A stale/missing/invalid deadline rearms in the future without catch-up runs.
+  Existing paused tasks remain paused and calendar/hourly recovery is unchanged.
+- **Automation:** Rust `scheduled::automation` persistence/recovery tests and
+  `scripts/e2e-scheduled-restart.mjs` use disposable state and real Host RPC.
+  No live provider, user task or installed app is used.
+- **Spec:** `03-runtime/06-host-rpc-protocol.md`, scheduled restart policy.
+
 ## E2E-SCHEDULED-independent-loading-and-route-return
 
 - **Preconditions:** Synthetic tasks; controllable task, latest-run, history and

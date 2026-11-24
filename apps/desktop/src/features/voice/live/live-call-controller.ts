@@ -2,7 +2,8 @@ import {
   parseCodexMessage,
   codexDelegationFeedback,
   codexWorkFeedbackMessage,
-  isPlaybackSignalActive,
+  codexPresenceGreetingMessage,
+  LIVE_PLAYBACK_SIGNAL_RMS_THRESHOLD,
 } from "@pi-desktop/voice-runtime/live";
 import type {
   LiveCallView,
@@ -14,7 +15,13 @@ import { api } from "../../../lib/api";
 import { useAppStore } from "../../../stores/app-store";
 import { liveVoiceApi, liveError } from "./live-voice-api";
 import { LivePcmSession } from "./live-pcm-session";
-import pcmWorkletUrl from "./pcm-worklet.js?url";
+import pcmWorkletUrl from "./pcm-worklet.js?url&no-inline";
+import playbackWorkletUrl from "./playback-worklet.js?url&no-inline";
+import { LiveAutomationReceiver } from "./live-automation-receiver";
+import { noteSessionCleanupUserPresence } from "../../../lib/session-cleanup-readiness";
+import { installSessionCleanupRuntime } from "./session-cleanup-runtime";
+import { playPresenceGreeting, type PresenceGreetingResult } from "./presence-greeting";
+import { CodexTranscriptAssembler } from "./codex-transcript";
 
 export type LiveVoiceSnapshot = {
   status: LiveStatus | null;
@@ -48,10 +55,10 @@ type StartResources = {
   peer?: RTCPeerConnection;
   channel?: RTCDataChannel;
   audio?: HTMLAudioElement;
-  playbackAnalyser?: AnalyserNode;
-  playbackSource?: MediaElementAudioSourceNode;
-  playbackGain?: GainNode;
-  playbackMonitorFrame?: number;
+  playbackSource?: MediaStreamAudioSourceNode;
+  playbackWorklet?: AudioWorkletNode;
+  playbackStateListener?: () => void;
+  playbackMonitorGeneration?: number;
   playbackActive?: boolean;
   heartbeat?: ReturnType<typeof setInterval>;
   captureEpoch: number;
@@ -63,6 +70,10 @@ type StartResources = {
   releaseFailed?: boolean;
   abort: AbortController;
   completedControlActions?: Set<string>;
+  transcripts?: CodexTranscriptAssembler;
+  lastMeasuredAudioAt?: number;
+  lastProviderTurnCompleteAt?: number;
+  providerReady?: boolean;
 };
 
 /** Window-lifetime owner for Live media. React subscriptions never own it. */
@@ -78,7 +89,10 @@ export class LiveCallController {
   private microphoneDeviceId: string | null = null;
 
   constructor() {
+    const automation = new LiveAutomationReceiver(this, liveVoiceApi.completeAutomation);
     this.disposers.push(
+      installSessionCleanupRuntime(() => !this.snapshot.starting && !this.snapshot.stopping && this.resources.size === 0),
+      liveVoiceApi.onAutomationRequest((request) => { void automation.receive(request); }),
       liveVoiceApi.onView((view) => this.handleView(view)),
       liveVoiceApi.onControl((event) => this.handleControl(event)),
       liveVoiceApi.onTranscript((event) => this.handleTranscript(event.callId, event.segment)),
@@ -115,7 +129,29 @@ export class LiveCallController {
     }
   }
 
-  async start(options: { workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean } = {}): Promise<void> {
+  async presenceGreeting(): Promise<PresenceGreetingResult> {
+    const call = this.snapshot.call;
+    const resources = call && [...this.resources.values()].find(item => item.callId === call.callId);
+    if (!call || call.adapterId !== "codex-live" || !resources || resources.channel?.readyState !== "open") throw liveError("LIVE_PROTOCOL_UNSUPPORTED");
+    const startedAt = Date.now();
+    return playPresenceGreeting({ signal: resources.abort.signal,
+      state: () => ({
+        connected: this.snapshot.call?.callId === call.callId && this.snapshot.call.phase === "connected",
+        playbackBlocked: this.snapshot.call?.playbackBlocked === true,
+        providerReady: resources.providerReady === true,
+        transcriptReceived: this.snapshot.transcripts.some(item => item.role === "assistant" && item.timestamp >= startedAt),
+        transcriptMatches: this.snapshot.transcripts.some(item => item.role === "assistant" && item.final && item.timestamp >= startedAt && /are you (?:present|there|here)[,\s]+sir/i.test(item.text)),
+        measuredAudio: (resources.lastMeasuredAudioAt ?? 0) >= startedAt,
+        playbackActive: resources.playbackActive === true,
+        turnComplete: (resources.lastProviderTurnCompleteAt ?? 0) >= startedAt,
+        contextState: resources.context?.state ?? "unavailable",
+      }),
+      send: () => resources.channel!.send(codexPresenceGreetingMessage()),
+    });
+  }
+
+  async start(options: { workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean; requestId?: string; signal?: AbortSignal } = {}): Promise<void> {
+    if (options.signal?.aborted) throw liveError("LIVE_STALE_CALL");
     if (this.snapshot.starting || this.snapshot.stopping || isLive(this.snapshot.call?.phase)) return;
     if (this.snapshot.call?.error?.code === "LIVE_MEDIA_RELEASE_UNCONFIRMED" || this.snapshot.errorCode === "LIVE_MEDIA_RELEASE_UNCONFIRMED") {
       this.patch({ errorCode: "LIVE_MEDIA_RELEASE_UNCONFIRMED" });
@@ -130,10 +166,12 @@ export class LiveCallController {
 
     const currentSessionId = options.workTarget?.workSessionId ?? useAppStore.getState().activeSessionId;
     const workTarget = currentSessionId ? { workSessionId: currentSessionId } : undefined;
-    const requestId = crypto.randomUUID();
+    const requestId = options.requestId ?? crypto.randomUUID();
     const resources: StartResources = { requestId, abort: new AbortController(), captureEpoch: 0, completedControlActions: new Set() };
     this.resources.set(requestId, resources);
     this.patch({ starting: true, stopping: false, errorCode: undefined, transcripts: [] });
+    const onExternalAbort = () => { if (generation === this.generation) void this.cancelStart().catch(() => undefined); };
+    options.signal?.addEventListener("abort", onExternalAbort, { once: true });
 
     let prepareRequest: ReturnType<typeof liveVoiceApi.prepare> | undefined;
     let micRequest: Promise<MediaStream> | undefined;
@@ -182,6 +220,9 @@ export class LiveCallController {
       this.patch({ status: freshStatus });
       if (generation !== this.generation || resources.abort.signal.aborted) throw liveError("LIVE_STALE_CALL");
       resources.stream = stream;
+      // Capture permission can unlock WebAudio after the initial resume attempt.
+      // This uses the granted media flow, never a synthetic gesture or policy flag.
+      void resources.context?.resume().catch(() => undefined);
       if (resources.stream.getAudioTracks().length !== 1) throw liveError("LIVE_MEDIA_UNSUPPORTED");
       await liveVoiceApi.reportMedia({ callId: prepared.callId, kind: "microphone-active", active: true });
       this.patchCallIfNewer({ callId: prepared.callId, revision: prepared.revision, bindingId: prepared.bindingId, adapterId: prepared.adapterId, phase: "acquiring-mic", muted: true, microphoneActive: true, userSpeaking: false, assistantSpeaking: false, mediaRelease: "pending" });
@@ -210,7 +251,7 @@ export class LiveCallController {
         await this.connectWebRtc(prepared.callId, resources);
       }
       if (generation !== this.generation || resources.abort.signal.aborted) throw liveError("LIVE_STALE_CALL");
-      await liveVoiceApi.reportMedia({ callId: prepared.callId, kind: "phase", phase: "connected" });
+      this.patchCallIfNewer(await liveVoiceApi.reportMedia({ callId: prepared.callId, kind: "phase", phase: "connected" }));
       this.patch({ starting: false });
       resources.heartbeat = setInterval(() => {
         void liveVoiceApi.heartbeat(prepared.callId).catch((error) => this.failActive(prepared.callId, error));
@@ -242,6 +283,7 @@ export class LiveCallController {
       this.completeResourceLifecycle(resources);
       throw error;
     } finally {
+      options.signal?.removeEventListener("abort", onExternalAbort);
       if (this.snapshot.starting && generation === this.generation && !resources.callId) this.patch({ starting: false });
     }
   }
@@ -362,7 +404,7 @@ export class LiveCallController {
       document.body.append(audio);
       resources.audio?.remove();
       resources.audio = audio;
-      if (resources.context) this.startPlaybackMonitor(callId, resources, audio);
+      if (resources.context) void this.startPlaybackMonitor(callId, resources, remoteStream);
       void audio.play().then(
         () => liveVoiceApi.reportMedia({ callId, kind: "playback-blocked", blocked: false }).catch(() => undefined),
         () => liveVoiceApi.reportMedia({ callId, kind: "playback-blocked", blocked: true }).catch(() => undefined),
@@ -392,14 +434,27 @@ export class LiveCallController {
       const value: unknown = JSON.parse(raw);
       for (const event of parseCodexMessage(value)) {
         switch (event.kind) {
+          case "ready":
+            resources.providerReady = true;
+            break;
           case "delegation":
             void liveVoiceApi.reportDelegation({ callId, delegationId: event.delegationId, instruction: event.instruction }).catch((error) => this.failActive(callId, error));
             break;
           case "transcript":
-            this.handleTranscript(callId, { id: event.id, role: event.role, text: event.text, final: event.final, timestamp: Date.now() });
+            // Native chunks share one row until the authoritative final; a new
+            // utterance then receives its own presence/deduplication identity.
+            const segment = (resources.transcripts ??= new CodexTranscriptAssembler()).push(event, Date.now());
+            this.handleTranscript(callId, segment);
+            if (event.role === "user" && event.final && event.text.trim()) {
+              void liveVoiceApi.reportUserTurn({ callId, itemId: segment.id }).catch((error) => this.failActive(callId, error));
+            }
             break;
           case "activity":
+            if (event.userSpeaking === true) noteSessionCleanupUserPresence(this.snapshot.call?.workBinding?.workSessionId);
             void liveVoiceApi.reportMedia({ callId, kind: "activity", userSpeaking: event.userSpeaking, assistantSpeaking: event.assistantSpeaking }).catch((error) => this.failActive(callId, error));
+            break;
+          case "turn-complete":
+            resources.lastProviderTurnCompleteAt = Date.now();
             break;
           case "error":
             void this.failActive(callId, liveError(event.code));
@@ -413,62 +468,60 @@ export class LiveCallController {
     }
   }
 
-  private startPlaybackMonitor(callId: string, resources: StartResources, audio: HTMLAudioElement): void {
+  private async startPlaybackMonitor(callId: string, resources: StartResources, stream: MediaStream): Promise<void> {
     this.stopPlaybackMonitor(resources);
     const context = resources.context;
     if (!context) return;
-    let source: MediaElementAudioSourceNode | undefined;
+    const generation = resources.playbackMonitorGeneration;
+    const current = () => !resources.abort.signal.aborted && generation === resources.playbackMonitorGeneration;
+    const report = (active: boolean) => {
+      if (!current() || resources.playbackActive === active) return;
+      resources.playbackActive = active;
+      void liveVoiceApi.reportMedia({ callId, kind: "playback-activity", active, ready: true }).catch(() => undefined);
+    };
     try {
-      source = context.createMediaElementSource(audio);
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 1_024;
-      const gain = context.createGain();
-      gain.gain.value = 1;
-      source.connect(analyser);
-      analyser.connect(gain);
-      gain.connect(context.destination);
+      await context.audioWorklet.addModule(playbackWorkletUrl);
+      if (!current() || context.state === "closed") return;
+      const source = context.createMediaStreamSource(stream);
+      const node = new AudioWorkletNode(context, "pi-live-playback-monitor", {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+        processorOptions: { threshold: LIVE_PLAYBACK_SIGNAL_RMS_THRESHOLD },
+      });
       resources.playbackSource = source;
-      resources.playbackAnalyser = analyser;
-      resources.playbackGain = gain;
-      const samples = new Float32Array(analyser.fftSize);
-      const report = (active: boolean) => {
-        if (resources.playbackActive === active) return;
-        resources.playbackActive = active;
-        void liveVoiceApi.reportMedia({ callId, kind: "playback-activity", active, ready: true }).catch(() => undefined);
+      resources.playbackWorklet = node;
+      node.port.onmessage = event => {
+        if (!current() || event.data?.kind !== "playback-signal" || typeof event.data.active !== "boolean") return;
+        if (context.state !== "running") { report(true); return; }
+        if (event.data.active) resources.lastMeasuredAudioAt = Date.now();
+        report(event.data.active);
       };
-      const sample = () => {
-        if (resources.abort.signal.aborted) return;
-        if (context.state === "closed") {
-          report(true);
-          return;
-        }
-        if (context.state !== "running") report(true);
-        else {
-          analyser.getFloatTimeDomainData(samples);
-          report(isPlaybackSignalActive(samples));
-        }
-        resources.playbackMonitorFrame = requestAnimationFrame(sample);
-      };
-      report(context.state !== "running");
-      resources.playbackMonitorFrame = requestAnimationFrame(sample);
+      node.onprocessorerror = () => report(true);
+      resources.playbackStateListener = () => { if (context.state !== "running") report(true); };
+      context.addEventListener("statechange", resources.playbackStateListener);
+      source.connect(node);
+      node.connect(context.destination); // Processor outputs zero, never duplicate remote speech.
+      if (context.state !== "running") report(true);
     } catch {
-      // Preserve audio output, but keep Main fail-closed if monitoring fails.
-      try { source?.connect(context.destination); } catch { /* audio remains unavailable through this context */ }
-      resources.playbackActive = true;
-      void liveVoiceApi.reportMedia({ callId, kind: "playback-activity", active: true, ready: true }).catch(() => undefined);
+      // The independent HTML audio output remains intact; delivery stays guarded.
+      if (!current()) return;
+      report(true);
       this.stopPlaybackMonitor(resources);
     }
   }
 
   private stopPlaybackMonitor(resources: StartResources): void {
-    if (resources.playbackMonitorFrame !== undefined) cancelAnimationFrame(resources.playbackMonitorFrame);
-    resources.playbackMonitorFrame = undefined;
+    resources.playbackMonitorGeneration = (resources.playbackMonitorGeneration ?? 0) + 1;
+    if (resources.playbackStateListener) resources.context?.removeEventListener("statechange", resources.playbackStateListener);
+    if (resources.playbackWorklet) {
+      resources.playbackWorklet.port.onmessage = null;
+      try { resources.playbackWorklet.port.postMessage({ kind: "stop" }); } catch { /* already released */ }
+      resources.playbackWorklet.port.close();
+      resources.playbackWorklet.disconnect();
+    }
     resources.playbackSource?.disconnect();
-    resources.playbackAnalyser?.disconnect();
-    resources.playbackGain?.disconnect();
     resources.playbackSource = undefined;
-    resources.playbackAnalyser = undefined;
-    resources.playbackGain = undefined;
+    resources.playbackWorklet = undefined;
+    resources.playbackStateListener = undefined;
   }
 
   private readonly handlePortMessage = (event: MessageEvent): void => {
@@ -664,6 +717,7 @@ export class LiveCallController {
   private handleTranscript(callId: string, segment: LiveTranscriptSegment): void {
     const call = this.snapshot.call;
     if (!call || call.callId !== callId) return;
+    if (segment.role === "user") noteSessionCleanupUserPresence(call.workBinding?.workSessionId);
     const current = this.snapshot.transcripts;
     const index = current.findIndex((item) => item.id === segment.id && item.role === segment.role);
     const next = index >= 0

@@ -64,6 +64,10 @@ export type AppSettings = {
   imageGenerationModels?: import("../image-generation.js").ImageGenerationBinding[] | null;
   defaultProviderId?: string;
   defaultModelId?: string;
+  /** Opt-in local Jarvis control; independent of the selected realtime voice. */
+  jarvisEnabled?: boolean;
+  /** Share a bounded read-only persistent queue snapshot at Live startup. */
+  jarvisQueueEnabled?: boolean;
   /** Per-install update behavior; absent uses the package's safe default. */
   updatePreference?: UpdatePreference;
   /** Last manually announced release; kept local to avoid repeating notices. */

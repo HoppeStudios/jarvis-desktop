@@ -1,5 +1,63 @@
 # E2E Scenarios: Conversation and Sessions
 
+## E2E-JARVIS-local-voice-control
+
+Verify authenticated MCP start through the real trusted renderer, preserving the
+selected account/voice and normal microphone permissions. Verify authoritative
+Main connection readback, explicit post-connect unmute, playback-blocked reports,
+same-ID retry, changed-payload conflict, two rapid distinct toggles, cancellation
+before prepare, timeout, lost owner/frame, and late completion after a newer call.
+An expectedCallId mismatch leaves the current call untouched. End remains usable
+with Jarvis disabled and waits for normal media release. No foreground/input or
+clipboard operations are permitted. Fixture evidence is separate from actual
+provider/audio acceptance.
+
+## E2E-JARVIS-initial-live-queue
+
+With Jarvis and queue sharing enabled, begin a work-enabled Live call against a
+fixture provider. Verify the actual initial adapter context includes the saved
+due cursor item, exact unresolved question/options, origin and revision before
+the adapter connects. Answered and deferred items are omitted. Startup does not
+acknowledge presence or modify queue state. Disabled sharing makes no MCP call;
+discovery connects only the registered inbox, not browser or other servers.
+Cancellation, unavailable/invalid data, oversized items and deadline expiry have
+explicit bounded outcomes and never create a second queue or invent answers.
+Repeat against the installed Codex Live binding for real-provider acceptance.
+
+## E2E-JARVIS-reviewed-history-import
+
+Enable the loopback MCP control endpoint in an isolated profile. Scan external
+sessions, import returned candidate identities through `session/importRun`, and
+verify the durable title and transcript after reopening. Repeat the import and
+verify it is skipped rather than duplicated. An identity absent from the latest
+scan must fail without a database write. Provider/OAuth/raw-settings write channels
+remain absent from the MCP catalog. Imported tool activity is historical data,
+never replayed as an execution request.
+
+The explicit launch-time `PI_DESKTOP_PI_IMPORT_DIR` archive is discoverable
+without making it a live native session root. Historical `codex-history`
+custom messages survive import as inert text. During an authorized installation,
+the curated `PI_DESKTOP_INSTALL_SETUP` path applies normal validated settings
+and MCP imports, preserves disabled integrations, rejects credentials and writes
+a success receipt only after completion. External settings/OAuth/secret-write
+MCP exclusions remain unchanged for raw settings writes.
+
+## E2E-JARVIS-general-settings-control
+
+Use the loopback MCP operation `settings/configureGeneral` with its explicit
+agent acknowledgement. Set an existing model and current-user permission default,
+then verify persisted readback. Existing voice binding and unrelated preferences
+remain identical. Reject unknown fields, credentials, network/computer-use grants
+and voice bindings without a write. A normal active-call settings guard refusal
+must propagate unchanged. Verify the stdio adapter discovers the same tools,
+preserves protocol refusals, rejects remote/redirected endpoints and closes its
+HTTP session when stdio closes. No global keyboard, cursor or clipboard input.
+
+The Host's real `settings.set` acknowledgement is `{ok:true}`. Verify that the
+normal settings apply path reads back `settings.get` before notifying the live
+call service or returning settings to the renderer; an acknowledgement must
+never be interpreted as disabled/missing voice configuration.
+
 ## E2E-stop-navigation-running-state
 
 Hold the history read after a successful local Stop, switch to another running session, then resolve the older session's history. Verify only the stopped session is settled, the new transcript remains and its toolbar still offers Stop. Also navigate synchronously during the hydration commit to exercise the final state writer. Coverage: `stop-navigation-running-state.test.mjs`, related smart-stop/terminal regressions, and `scripts/e2e-stop-navigation-running-state.mjs` using the production store and ComposerToolbar in Electron.

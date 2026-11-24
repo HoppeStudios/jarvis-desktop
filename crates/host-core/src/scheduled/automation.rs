@@ -190,11 +190,27 @@ pub fn due(db: &Database, now: i64) -> Result<Vec<String>> {
 }
 
 pub fn recover(db: &Database) -> Result<()> {
+    recover_at(db, now_ms())
+}
+
+fn recover_at(db: &Database, now: i64) -> Result<()> {
     // Database boot maintenance owns interruption of orphaned task_runs.
-    // Restart starts from future occurrences; downtime never creates a burst.
+    // An armed interval already has a durable deadline. Moving it on every
+    // restart can starve maintenance forever. Preserve the same admission
+    // window as due(); stale occurrences still never create a catch-up burst.
     for task in super::list_tasks(db)? {
         if task.schedule.is_some() {
-            reschedule(db, &task.id, now_ms())?;
+            let keep_interval = task.cadence == "interval"
+                && task.schedule.as_ref().is_some_and(|schedule| {
+                    schedule.validate().is_ok() && schedule.interval_minutes.is_some()
+                })
+                && task.next_run_at.as_deref().is_some_and(|next| {
+                    let next = crate::db::ts_to_ms(next);
+                    next > 0 && next >= now.saturating_sub(90_000)
+                });
+            if !keep_interval {
+                reschedule(db, &task.id, now)?;
+            }
         }
     }
     Ok(())
@@ -204,6 +220,47 @@ pub fn recover(db: &Database) -> Result<()> {
 mod tests {
     use super::*;
     use crate::scheduled::{begin_run, create_task, finish_run, update_task};
+
+    #[test]
+    fn interval_deadline_survives_repeated_restarts_and_keeps_due_grace() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::open_in_dir(dir.path()).unwrap();
+        let task = create_task(&db, &json!({"prompt":"maintenance", "cadence":"interval",
+            "schedule":{"hour":0,"minute":0,"weekday":0,"intervalMinutes":600}})).unwrap();
+        let at = crate::db::ts_to_ms(task.next_run_at.as_ref().unwrap());
+        drop(db);
+        let db = Database::open_in_dir(dir.path()).unwrap();
+        for now in [at - 30_000_000, at - 1_000, at, at + 90_000] {
+            recover_at(&db, now).unwrap();
+            assert_eq!(get_task(&db, &task.id).unwrap().unwrap().next_run_at, task.next_run_at);
+        }
+        assert_eq!(due(&db, at + 90_000).unwrap(), vec![task.id.clone()]);
+        let run = begin_run(&db, &task.id, None).unwrap();
+        assert!(due(&db, at + 90_000).unwrap().is_empty(), "no overlapping replay");
+        finish_run(&db, &run, "completed", None).unwrap();
+    }
+
+    #[test]
+    fn stale_missing_and_invalid_interval_deadlines_rearm_without_replay() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Database::open_in_dir(dir.path()).unwrap();
+        let task = create_task(&db, &json!({"prompt":"maintenance", "cadence":"interval",
+            "schedule":{"hour":0,"minute":0,"weekday":0,"intervalMinutes":600}})).unwrap();
+        let at = crate::db::ts_to_ms(task.next_run_at.as_ref().unwrap());
+        let now = at + 90_001;
+        recover_at(&db, now).unwrap();
+        let expected = crate::db::ms_to_ts(now + 36_000_000);
+        assert_eq!(get_task(&db, &task.id).unwrap().unwrap().next_run_at.as_deref(), Some(expected.as_str()));
+        assert!(due(&db, now).unwrap().is_empty());
+        for next in [Value::Null, json!(0), json!("invalid")] {
+            let raw: String = db.conn().query_row("SELECT config_json FROM scheduled_tasks WHERE id = ?1", [&task.id], |row| row.get(0)).unwrap();
+            let mut config: Value = serde_json::from_str(&raw).unwrap();
+            config["nextRunAt"] = next;
+            db.conn().execute("UPDATE scheduled_tasks SET config_json = ?1 WHERE id = ?2", params![config.to_string(), &task.id]).unwrap();
+            recover_at(&db, now).unwrap();
+            assert_eq!(get_task(&db, &task.id).unwrap().unwrap().next_run_at.as_deref(), Some(expected.as_str()));
+        }
+    }
 
     #[test]
     fn legacy_tasks_are_not_armed_and_explicit_schedule_survives_edits() {

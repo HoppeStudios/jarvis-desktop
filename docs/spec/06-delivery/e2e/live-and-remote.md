@@ -746,3 +746,68 @@ ancestor opens after a project switch, and restored local
 editing/Browser/editor detection. No model, user profile or external SSH server
 participates. Real SSH transport and native Windows/Linux behavior require
 their separate platform acceptance.
+
+## Jarvis fork acceptance
+
+- With Jarvis enabled, start a fresh coordinator from native Live settings or
+  authenticated MCP. Verify a new independent durable session, selected account
+  and voice, GPT-6.1 Sol/low/Fast/Auto, and unchanged selected busy chat/draft.
+- Retry one request ID: exactly one coordinator. Toggle again during startup:
+  startup is cancelled and media is released; no second coordinator is created.
+- Create ordinary work through UI and MCP: GPT-6.1 Sol/medium/Fast. Configure high
+  effort with Fast false: high persists, Fast stays on. Disable Jarvis and verify
+  ordinary model/Fast selection remains available. Existing tool/OS permissions
+  are never elevated by this policy.
+- Deliver two distinct legacy Codex input transcripts without item IDs: both
+  appear independently and both update user presence. Repeated identified final
+  transcripts remain deduplicated.
+
+### E2E-JARVIS-EMPTY-COORDINATOR: Unanswered automatic invitation cleanup
+
+- Run `node scripts/e2e-jarvis-empty-cleanup.mjs` against this candidate's
+  built Rust Host. It uses real stdio/persistence, Main automation and operation
+  admission, and renderer readiness; greeting/media are explicit fixtures, not
+  installed playback or human speech evidence. Temporary data is isolated under
+  `PI_SCRATCH_DIR` when available. No account, microphone, voice call or Inbox
+  data participates.
+- Automatic fresh coordinator -> verified greeting receipt -> controlled timeout
+  -> exact call End -> confirmed release -> renderer reservation -> Host
+  conditional delete. Only this owned, untouched, empty session disappears.
+- Manual wake/End, actual/sticky/partial speech, cached text/attachments, current
+  editor ownership, prior/ongoing selection, pending prefill, stale/unknown
+  acknowledgement, active turn and queued prompt preserve the session. The
+  focused Node/Rust tests cover admission races, changed revisions and dependent
+  data, invalid owner/document, early timeout and unconfirmed/missing call state.
+- Run `node --test apps/desktop/test/jarvis-invitation-deadline.test.mjs` for
+  real Main results plus actual PowerShell listener folds. Reproduce an end
+  submitted just before Main expiry: retain the in-flight invitation, accept only
+  an explicit pending-deadline receipt, require a poll begun after that receipt,
+  and eventually end once after expiry. Preserve the original greeting time.
+  Speech, newer manual intent/disable, stale evidence and errors must prevent
+  retries; no duplicate in-flight ends or real voice/recognizer is involved.
+- Selection before final reservation cancels cleanup. Navigation after that
+  reservation waits without mounting a target composer; Host refusal releases
+  it, while unknown deletion outcome remains reserved until conclusive release
+  or reload. Other chats and their drafts remain unchanged.
+- Restart the fixture Host and verify unrelated history is retained. Queue
+  acknowledgements/reports are never part of cleanup.
+- Before deployment, the owning idle installer must verify no active app work or
+  call, then perform installed-client acceptance. This fixture does not prove
+  real human listening/speech, OS media release or actual renderer IPC delivery.
+
+## E2E-JARVIS-composer-draft-metadata
+
+- Launch the built desktop with an isolated home/profile, private loopback MCP
+  and background startup. No user account, provider, microphone or live queue
+  is used. Query native `app/composerDraftStatus` on an empty shell.
+- Type fixture text only through the isolated renderer DOM. Query metadata,
+  switch to another fixture chat and verify the inactive cache still blocks
+  emptiness. Restore/clear the draft, switch away and verify an empty result.
+  Focus an empty fixture editor through page-local focus emulation and verify
+  busy status. No fixture draft is submitted as a message.
+- Check replies contain counts only. Unit coverage additionally checks unknown
+  readers, attachment-only and whitespace drafts, thrown readers, nonce reuse,
+  owner mismatch, malformed counts, document invalidation and timeouts.
+- Automation: `node scripts/e2e-composer-draft-status.mjs` plus desktop
+  `composer-draft-status.test.mjs`. This verifies real Main/renderer/MCP delivery
+  with fixture drafts, not a shutdown lease or installed-client acceptance.

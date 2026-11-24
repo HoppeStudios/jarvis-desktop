@@ -1,7 +1,9 @@
+import type { JarvisCoordinatorCleanup, RendererCleanupProbe } from "../jarvis/coordinator-cleanup";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
-import { IPC, type LiveEndReason, type LiveVoiceWidgetAction } from "@pi-desktop/shared";
+import { IPC, type ComposerDraftStatus, type LiveEndReason, type LiveVoiceWidgetAction } from "@pi-desktop/shared";
 import type { LiveCallService as LiveCallServiceImpl, LiveOwner } from "../live-voice/call-service";
-import { liveOwnerFromInvoke } from "../live-voice/owner";
+import { liveOwnerFromInvoke, liveOwnerFromWebContents, liveOwnerFrame } from "../live-voice/owner";
+import { LiveVoiceAutomation } from "../live-voice/automation";
 import type { IpcRegistrar } from "./types";
 import type { LiveVoiceWidget } from "../live-voice/widget-window";
 import type { LiveVoiceWidgetSize } from "../live-voice/widget-geometry";
@@ -18,12 +20,54 @@ export function registerLiveVoiceIpc(input: {
   getMainWindow: () => BrowserWindow | null;
   /** The docked widget window: not a call owner, but allowed to drive its chrome. */
   widget: Pick<LiveVoiceWidget, "owns" | "setPresentation" | "requestAction" | "setOwnerState">;
+  automationEnabled?: () => Promise<boolean>;
+  createCoordinator?: () => Promise<string>;
+  captureStatus?: () => unknown;
+  coordinatorCleanup?: JarvisCoordinatorCleanup;
+  cleanupProbe?: RendererCleanupProbe;
+  composerDraftStatus?: () => Promise<ComposerDraftStatus>;
+  completeComposerDraftStatus?: (owner: LiveOwner, raw: unknown) => { accepted: boolean };
 }): void {
   const { registrar, service, getMainWindow, widget } = input;
   const owner = (event: IpcMainInvokeEvent): LiveOwner => {
     registrar.assertMainWindowSender(event);
     return liveOwnerFromInvoke(event, getMainWindow());
   };
+  const automation = new LiveVoiceAutomation({
+    enabled: input.automationEnabled ?? (async () => false),
+    status: () => service.status(),
+    owner: () => { const window = getMainWindow(); return window ? liveOwnerFromWebContents(window, window.webContents) : null; },
+    send: (identity, request) => {
+      const frame = liveOwnerFrame(getMainWindow(), identity);
+      if (!frame) throw Object.assign(new Error("Live owner unavailable"), { errorCode: "LIVE_INVALID_OWNER" });
+      frame.send(IPC.event.liveVoiceAutomationRequest, request);
+    },
+    end: (identity, request) => service.end(identity, request),
+    createCoordinator: input.createCoordinator,
+    observeCoordinator: (identity, id) => input.coordinatorCleanup?.observe(identity, id) ?? Promise.resolve(),
+    cleanupCoordinator: (identity, id, verify) => input.coordinatorCleanup?.cleanup(identity, id, verify) ?? Promise.resolve("deferred"),
+  });
+  registrar.handleWithEvent(IPC.invoke.sessionCleanupResponse, async (event, raw) => input.cleanupProbe?.complete(owner(event), raw) ?? { accepted: false });
+  registrar.handle(IPC.invoke.appComposerDraftStatus, async () => input.composerDraftStatus?.() ?? { known: false, empty: false });
+  registrar.handleWithEvent(IPC.invoke.appComposerDraftStatusResponse, async (event, raw) =>
+    input.completeComposerDraftStatus?.(owner(event), raw) ?? { accepted: false });
+  registrar.handle(IPC.invoke.liveVoiceAutomationStatus, async () => ({...await automation.status(),
+    ...(input.captureStatus ? {queueCapture:input.captureStatus()} : {})}));
+  registrar.handle(IPC.invoke.jarvisSettingsOpen, async () => {
+    const window = getMainWindow();
+    if (!window || window.isDestroyed()) throw Object.assign(new Error("Live owner unavailable"), { errorCode: "LIVE_INVALID_OWNER" });
+    const identity = liveOwnerFromWebContents(window, window.webContents);
+    if (!identity) throw Object.assign(new Error("Live owner unavailable"), { errorCode: "LIVE_INVALID_OWNER" });
+    const frame = liveOwnerFrame(window, identity);
+    if (!frame) throw Object.assign(new Error("Live owner unavailable"), { errorCode: "LIVE_INVALID_OWNER" });
+    // Reveal a hidden tray window without the widget's foreground handover.
+    // Delivery still does not prove the settings page finished rendering.
+    frame.send(IPC.event.liveVoiceWidgetAction, { action: "settings" });
+    window.showInactive();
+    return { dispatched: true, visible: window.isVisible() };
+  });
+  registrar.handle(IPC.invoke.liveVoiceAutomationControl, raw => automation.control(raw));
+  registrar.handleWithEvent(IPC.invoke.liveVoiceAutomationComplete, (event, raw) => automation.complete(owner(event), raw));
 
   // The widget window is not the call owner: it may only ask the owner frame to
   // run an action and report the box its own content needs.
@@ -54,6 +98,11 @@ export function registerLiveVoiceIpc(input: {
   registrar.handleWithEvent(IPC.invoke.liveVoiceReportPlayback, async (event, raw: unknown) => {
     service.reportPlayback(owner(event), parsePlayback(raw));
     return { ok: true };
+  });
+  registrar.handleWithEvent(IPC.invoke.liveVoiceReportUserTurn, async (event, raw: unknown) => {
+    const value = record(raw); exactKeys(value, ["callId", "itemId"]);
+    if (typeof value.itemId !== "string") return invalid();
+    return service.reportUserTurn(owner(event), { callId: callId(value.callId), itemId: value.itemId });
   });
   registrar.handleWithEvent(IPC.invoke.liveVoiceReportDelegation, async (event, raw: unknown) => {
     return service.reportDelegation(owner(event), parseDelegation(raw));

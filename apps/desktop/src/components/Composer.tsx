@@ -650,7 +650,8 @@ export function Composer({
             modelMenu={modelMenu}
             modelLabel={modelLabel}
             thinkingLabel={thinkingLabel}
-            modelFastMode={sessionFastModeActive(provider, modelId, activeSession ?? draftConfiguration)}
+            modelFastMode={sessionFastModeActive(provider, modelId, settings?.jarvisEnabled
+              ? { ...(activeSession ?? draftConfiguration), fastMode: true } : activeSession ?? draftConfiguration)}
             contextUsage={composerContextUsage ?? null}
             value={value}
             modelReady={modelReady}

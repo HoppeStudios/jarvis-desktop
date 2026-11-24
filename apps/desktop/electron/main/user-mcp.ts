@@ -240,8 +240,9 @@ export class UserMcpRuntime {
    * the turn: each handshake has its own timeout and a failure is recorded as
    * status rather than thrown.
    */
-  async toolsForProject(projectPath: string | null | undefined): Promise<UserMcpToolDescriptor[]> {
-    const active = this.listedRecords(projectPath).filter((record) => isActiveInProject(record, projectPath));
+  async toolsForProject(projectPath: string | null | undefined, serverId?: string): Promise<UserMcpToolDescriptor[]> {
+    const active = this.listedRecords(projectPath).filter((record) =>
+      (!serverId || record.id === serverId) && isActiveInProject(record, projectPath));
     const admitted = active.slice(0, MAX_ACTIVE_SERVERS);
     if (admitted.length < active.length) {
       this.options.log?.("warn", "user mcp servers skipped over the active cap", {

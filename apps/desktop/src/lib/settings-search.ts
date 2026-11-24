@@ -180,6 +180,8 @@ export const SETTINGS_NAV: SettingsNavEntry[] = [
     group: "preferences",
     keywordKeys: [
       "liveVoice.title",
+      "liveVoice.jarvis.enable",
+      "liveVoice.jarvis.queue",
       "liveVoice.description",
       "liveVoice.enable",
       "liveVoice.provider",

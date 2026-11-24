@@ -1,4 +1,5 @@
 import i18n from "i18next";
+import { admitSessionCleanupSelection } from "../../lib/session-cleanup-readiness";
 import type {
   Mode,
   PendingInteractiveRequests,
@@ -415,6 +416,9 @@ export function createSessionSlice({
 
     selectSession: async (id, opts) => {
       const intent = opts?.navigationIntent ?? runtime.beginNavigationIntent();
+      const cleanupAdmission = admitSessionCleanupSelection(id);
+      if (typeof cleanupAdmission === "boolean" ? !cleanupAdmission : !await cleanupAdmission) return;
+      if (!runtime.navigationIntentIsCurrent(intent)) return;
       const selection = runtime.beginSessionSelection(id, intent);
       const stateAtStart = get();
       const runningAtSelection = stateAtStart.runningSessions[id] === true;

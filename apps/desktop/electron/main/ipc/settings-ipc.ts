@@ -5,6 +5,7 @@ import type { IpcRegistrar } from "./types";
 import type { LiveCallService } from "../live-voice/call-service";
 import type { AppSettings } from "@pi-desktop/shared";
 import { currentSystemProxyRelayUrl } from "../network-proxy";
+import { validateGeneralSettingsPatch } from "../general-settings";
 
 export type SettingsIpcDependencies = {
   registrar: IpcRegistrar;
@@ -70,7 +71,7 @@ export function registerSettingsIpc({
     return testNetworkProxy(settings);
   });
 
-  handle(IPC.invoke.settingsSet, async (settings: unknown) => {
+  const applySettings = async (settings: unknown) => {
     if (!host) throw new Error("host unavailable");
     const validatedSettings = validateSettingsWrite(settings);
     const currentSettings = await host.call<AppSettings>("settings.get");
@@ -80,7 +81,10 @@ export function registerSettingsIpc({
     const releaseSettingsWrite = liveCallService?.beginSettingsWrite(prospectiveSettings);
     let result: AppSettings;
     try {
-      result = await host.call<AppSettings>("settings.set", validatedSettings);
+      // Host settings.set returns only {ok:true}; call state and the renderer
+      // need persisted settings, never that acknowledgement as a snapshot.
+      await host.call("settings.set", validatedSettings);
+      result = await host.call<AppSettings>("settings.get");
       await liveCallService?.settingsWritten(result);
     } finally {
       releaseSettingsWrite?.();
@@ -124,6 +128,11 @@ export function registerSettingsIpc({
     );
     applyDeveloperMode(validatedSettings as { developerMode?: unknown } | null);
     return result;
+  };
+  handle(IPC.invoke.settingsSet, applySettings);
+  handle(IPC.invoke.settingsConfigureGeneral, async (settings: unknown) => {
+    const patch = validateGeneralSettingsPatch(settings);
+    return normalizeSettings(await applySettings(patch));
   });
 
   handle(IPC.invoke.commandShellList, async () => resolveEffectiveCommandShell());

@@ -1,5 +1,6 @@
 import { builtinModeRuns } from "./helpers/builtin-mode-runs.mjs";
 import assert from "node:assert/strict";
+import * as jarvisExecutionPolicy from "../electron/main/jarvis/execution-policy.ts";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
@@ -246,6 +247,7 @@ function forkHarness({ host, sidecar, activeTurns = new Map() }) {
     "../services/session-collaboration": { readSessionCollaboration() {} },
     "../services/session-search": { localNativeProjectPaths, searchSessionsAcrossSources },
     "../bootstrap/remote-hosts.js": { getActiveRemoteHostsBoot: () => null },
+    "../jarvis/execution-policy": jarvisExecutionPolicy,
   });
   registerSessionIpc({
     registrar: { handle: (channel, handler) => handlers.set(channel, handler) },

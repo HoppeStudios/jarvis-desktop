@@ -20,6 +20,8 @@ import { createLiveWorkBridge } from "./work-bridge";
 import { listLiveWorkSessions, requireLiveWorkSession, type LiveWorkSessionRecord } from "./live-work-backend-port";
 import type { ThinkingLevel } from "@pi-desktop/shared";
 import { liveWorkUnselectedSessionId, sessionWorkspaceIdentity } from "@pi-desktop/host-runtime";
+import type { UserMcpRuntime } from "../user-mcp";
+import { loadJarvisQueueContext } from "../jarvis/queue-context";
 
 type BackgroundLease = { webContents: WebContents; previous: boolean; count: number };
 
@@ -31,6 +33,8 @@ export function createLiveCallService(input: {
   getBackendRouter?: () => BackendRouter | null;
   getRemoteHosts?: () => RemoteHostsBoot | null;
   vendorOAuth: Pick<VendorOAuth, "resolveAuth">;
+  userMcp?: Pick<UserMcpRuntime, "toolsForProject" | "callTool" | "cancelSessionCalls">;
+  refreshUserMcp?: (projectPath?: string | null) => Promise<unknown>;
   /**
    * Every published call view, for chrome outside the owner frame — the docked
    * Live Voice widget window. The owner frame keeps receiving the same view
@@ -52,6 +56,7 @@ export function createLiveCallService(input: {
 }): LiveCallService {
   const backgroundLeases = new Map<number, BackgroundLease>();
   const authorizedWorkspaces = new WeakMap<object, string | null>();
+  let latestSettings: AppSettings | undefined;
   const authResolver = new LiveAuthResolver({
     callHost: <T,>(method: string, params?: unknown): Promise<T> => {
       const host = input.getHost();
@@ -102,10 +107,28 @@ export function createLiveCallService(input: {
     loadSettings: async () => {
       const host = input.getHost();
       if (!host) throw Object.assign(new Error("host unavailable"), { errorCode: "LIVE_PROVIDER_NOT_FOUND" });
-      return host.call<AppSettings>("settings.get");
+      latestSettings = await host.call<AppSettings>("settings.get");
+      return latestSettings;
     },
     authResolver,
     log: input.log,
+    loadWorkStartupContext: async ({ callId, signal }) => {
+      const scope = `jarvis-live-startup:${callId}`;
+      return loadJarvisQueueContext({
+        enabled: latestSettings?.jarvisEnabled === true && latestSettings?.jarvisQueueEnabled === true,
+        signal,
+        cancel: () => input.userMcp?.cancelSessionCalls(scope),
+        read: async (readSignal) => {
+          if (!input.userMcp || !input.refreshUserMcp) throw new Error("Queue MCP runtime unavailable");
+          await input.refreshUserMcp(null);
+          const tools = await input.userMcp.toolsForProject(null, "Jarvis-Inbox");
+          if (readSignal.aborted) throw new Error("Live startup cancelled");
+          const tool = tools.find((entry) => entry.serverId === "Jarvis-Inbox" && entry.toolName === "review_queue");
+          if (!tool) throw new Error("Queue read tool unavailable");
+          return input.userMcp.callTool(tool.fullName, { limit: 100 }, null, scope);
+        },
+      });
+    },
     resolveWorkBinding: async (target) => {
       const sessions = await listLiveWorkSessions({
         getHost: input.getHost,

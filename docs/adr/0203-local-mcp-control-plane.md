@@ -24,7 +24,7 @@ project/session/Agent/workspace flow plus a generic `pi_desktop_invoke` over a
 risk-tagged catalog discovered by `pi_control_describe`. Dangerous generic
 operations and named destructive tools, including `session/configure`, require
 `confirm: true`, which is an agent acknowledgement rather than a user prompt.
-Secret channels, provider/OAuth/MCP secret writes, settings writes, and
+Secret channels, provider/OAuth/MCP secret writes, raw settings writes, and
 renderer-only picker channels are excluded, secret-shaped argument fields are
 stripped, and a new IPC handler is never exposed automatically. Mutating
 project, session, and Agent calls reuse `pi-desktop/session/event/changed` with
@@ -39,3 +39,25 @@ additive project and selection fields, while reads do not refresh the desktop.
 - The endpoint grants the authority of the running desktop; loopback binding,
   opt-in startup, bearer authentication, and confirmation gates limit accidental
   exposure but not a process that can already read the token.
+
+## Amendment: bounded history migration
+
+The reviewed write operation `session/importRun(candidates)` reuses the same
+import handler as the desktop. Only identities returned by the most recent
+`session/importScan` are accepted. The client cannot supply a file path,
+transcript, provider credential or database record. Existing imported session
+identities are skipped. This does not expose model configuration imports,
+provider/OAuth writes or arbitrary settings writes.
+
+## Amendment: curated general preferences
+
+An explicit `settings/configureGeneral` operation accepts only existing model/
+provider selection, builtin Agent/Plan default, permission preference, update
+preference, codemode and background continuation. Unknown fields, credentials,
+voice bindings, network and computer-use grants are rejected before mutation.
+The operation requires the existing dangerous-operation acknowledgement and
+delegates to normal settings validation, active-call guards and host persistence.
+It returns persisted readback. Raw `settings/set` remains excluded. This does not
+change OS privileges, server policies, provider authentication or host approvals.
+The standard-library stdio adapter preserves this same authenticated loopback
+protocol and never exposes the local bearer token as a tool argument.

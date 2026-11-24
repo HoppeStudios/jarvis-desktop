@@ -68,6 +68,7 @@ import { MainProcessState } from "./bootstrap/main-state";
 import { registerApplicationActivation } from "./bootstrap/app-activation";
 import { createHostRuntime } from "./runtime/host";
 import { createSidecarRuntime } from "./runtime/sidecar";
+import { createJarvisInboxProducer } from "./jarvis/inbox-producer-port";
 import { createComputerCursorOverlay } from "./computer-use/cursor-overlay";
 import { createEventPersistence } from "./runtime/event-persistence";
 import { createPlanRuntime } from "./runtime/plans";
@@ -804,8 +805,15 @@ function publishComputerGrant(grant: ComputerGrantView | null): void {
   if (!grant || grant.state !== "active") computerCursorOverlay.close();
 }
 
+const jarvisInboxProducer=createJarvisInboxProducer({
+  dataDir,sessionProjects,userMcp,refreshUserMcp,
+  settings:async()=>{const host=getHost();if(!host)throw new Error("host unavailable");return host.call("settings.get");},
+  failure:metadata=>logger.app("runtime","warn","Jarvis queue capture failed",{data:metadata}),
+  notifyFailure:()=>sendToRenderer(IPC.event.toast,{message:"Jarvis could not save an update to the shared queue. Check the source chat; its work and question remain available."}),
+});
 const sidecarRuntime = createSidecarRuntime({
   observeBackgroundResult: backgroundContinuations.observe,
+  observeJarvisEvent: envelope=>jarvisInboxProducer.observe(envelope),
   runtimeState,
   steeringReplies,
   logger,
@@ -911,6 +919,7 @@ const liveVoiceWidget = createLiveVoiceWidget({
 });
 
 const liveCallService = createLiveCallService({
+  userMcp, refreshUserMcp,
   getHost,
   getMainWindow,
   getAgentHostBridge: () => mainState.agentHostBridge,
@@ -991,6 +1000,7 @@ function registerIpc() {
     activeTurns,
     completionNoticeTurns,
     isTurnDispatchable,
+    isSessionBusy,
     sessionProjects,
     persistenceOutbox,
     logger,
@@ -1077,6 +1087,7 @@ function registerIpc() {
     voiceService,
     liveCallService,
     liveVoiceWidget,
+    jarvisCaptureStatus:()=>jarvisInboxProducer.status(),
   });
 }
 
@@ -1125,6 +1136,7 @@ void app.whenReady().then(() => {
 app.once("will-quit", () => liveVoiceWidget.close());
 
 registerApplicationStartup({
+  onInputResolved:(request,resolution)=>{void jarvisInboxProducer.recordNativeAnswer(request,resolution);},
   hasSingleInstanceLock,
   state: startupState,
   dataDir,

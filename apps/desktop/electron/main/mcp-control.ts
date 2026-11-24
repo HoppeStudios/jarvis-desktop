@@ -5,6 +5,7 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { SESSION_COLLABORATION_OPERATIONS } from "./session-collaboration-control";
 import { markAutomationRequest } from "./runtime/user-message-provenance";
+import { validateGeneralSettingsPatch } from "./general-settings";
 
 /** A small JSON Schema subset used by MCP's tools/list response. */
 export type McpJsonSchema = {
@@ -190,6 +191,7 @@ const spec = (
 const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("appGetVersion", "app/getVersion", "Return PI-Desktop and host versions.", "read", []),
   spec("appHealth", "app/health", "Return host health.", "read", []),
+  spec("appComposerDraftStatus", "app/composerDraftStatus", "Read counts of cached, live, busy and unknown composers, without draft content. An observation is not a restart lease; check calls/work separately.", "read", []),
   spec("appGetOnboarding", "app/getOnboarding", "Read onboarding state.", "read", []),
   spec("appDismissOnboarding", "app/dismissOnboarding", "Dismiss onboarding.", "write", []),
   spec("systemFontsList", "app/systemFonts", "List installed system fonts.", "read", []),
@@ -217,8 +219,13 @@ const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("sessionListRevisions", "session/listRevisions", "List transcript revisions.", "read", ["input"]),
   spec("sessionGetScratchPath", "session/getScratchPath", "Return a session scratch path.", "read", ["input"]),
   spec("sessionImportScan", "session/importScan", "Scan supported external session sources.", "read", []),
+  spec("sessionImportRun", "session/importRun", "Import only candidates returned by the latest session scan; existing sessions are preserved.", "write", ["candidates"]),
   spec("modelConfigImportScan", "modelConfig/importScan", "Scan supported model configuration sources.", "read", []),
   spec("settingsGet", "settings/get", "Read application settings.", "read", []),
+  spec("liveVoiceAutomationStatus", "voice/status", "Read actual Live readiness, current call and pending local start.", "read", []),
+  spec("jarvisSettingsOpen", "settings/openJarvis", "Navigate the main renderer to native Jarvis/Live settings without changing foreground focus. Delivery requires separate UI verification.", "write", []),
+  spec("liveVoiceAutomationControl", "voice/control", "Start, toggle or end Live through its trusted renderer and normal media guards. Requires Jarvis opt-in for starts and a unique requestId; retries of that ID are idempotent.", "dangerous", ["request"]),
+  spec("settingsConfigureGeneral", "settings/configureGeneral", "Configure non-secret model defaults, permission preference and background/codemode preferences through normal settings guards.", "dangerous", ["patch"]),
   spec("networkProxyTest", "network/testProxy", "Test a network proxy configuration.", "read", ["settings"]),
   spec("commandShellList", "commandShell/list", "List supported command shells.", "read", []),
   spec("providersList", "providers/list", "List configured providers without plaintext secrets.", "read", []),
@@ -240,6 +247,11 @@ const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("composerCommands", "composer/commands", "List composer commands and skills.", "read", []),
   spec("closeBehaviorGet", "window/closeBehavior/get", "Read close behavior.", "read", []),
   spec("scheduledList", "scheduled/list", "List scheduled tasks.", "read", []),
+  spec("scheduledListRuns", "scheduled/listRuns", "Read scheduled execution receipts and their actual session identities.", "read", ["options"]),
+  spec("scheduledCreate", "scheduled/create", "Create a scheduled task through normal Host validation. Use enabled=false when staging a migration.", "dangerous", ["input"]),
+  spec("scheduledUpdate", "scheduled/update", "Update an existing scheduled task through normal Host validation.", "dangerous", ["input"]),
+  spec("scheduledDelete", "scheduled/delete", "Delete a scheduled task through the normal task lifecycle.", "dangerous", ["id"]),
+  spec("scheduledExecute", "scheduled/execute", "Execute a scheduled task through normal Agent admission; a run ledger alone is not execution.", "dangerous", ["id", "automatic?"]),
   spec("toolResolvePermission", "tool/resolvePermission", "Resolve a pending tool permission request.", "dangerous", ["resolution"]),
   spec("pendingInteractive", "agent/pendingInteractive", "List pending Agent questions and tool permission requests.", "read", ["input"]),
   spec("askToolResolve", "agent/askTool/resolve", "Answer an Agent question.", "dangerous", ["resolution"]),
@@ -253,6 +265,7 @@ const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("mcpList", "mcp/list", "List user-owned MCP servers.", "read", ["query"]),
   spec("skillList", "skill/list", "List user-owned Skills.", "read", ["query"]),
   spec("skillRead", "skill/read", "Read a user-owned Skill.", "read", ["input"]),
+  spec("skillImportRun", "skill/import", "Import explicitly selected local skill packages through normal Host validation. Existing identities are preserved; no picker or arbitrary settings write.", "dangerous", ["payload"]),
   spec("subagentList", "subagent/list", "List user-owned Subagents.", "read", ["query"]),
   spec("subagentCatalog", "subagent/catalog", "Read the effective Subagent catalog.", "read", ["query"]),
   spec("subagentRead", "subagent/read", "Read a user-owned Subagent.", "read", ["input"]),
@@ -449,6 +462,8 @@ const CORE_TOOL_SPECS = [
 export const MCP_CONTROL_CATALOG_CHANNEL_KEYS = CONTROL_OPERATION_SPECS.map((entry) => entry.channelKey);
 
 export const MCP_CONTROL_BLOCKED_CHANNEL_KEYS = [
+  "liveVoiceAutomationComplete",
+  "liveVoiceReportUserTurn",
   "secretsSet",
   "secretsDelete",
   "secretsHas",
@@ -751,6 +766,7 @@ export function mcpControlRendererEvent(
   if (operation.id === "project/clear") {
     return { reason: "mcp.project", projectPath: null };
   }
+  if (operation.id === "settings/configureGeneral") return { reason: "mcp.settings" };
   if (SESSION_MUTATION_IDS.has(operation.id) || operation.id === "plans/resolve") {
     return { reason: "mcp.session" };
   }
@@ -800,6 +816,10 @@ export function createMcpControlController(options: {
         throw Object.assign(new Error(`confirm=true is required for ${operation.id}`), {
           code: "CONFIRMATION_REQUIRED",
         });
+      }
+      if (operation.id === "settings/configureGeneral") {
+        if (args.length !== 1) throw Object.assign(new Error("one settings patch is required"), { code: "INVALID_PARAMS" });
+        validateGeneralSettingsPatch(args[0]);
       }
       const sanitized = args.map((value) => stripSecretMaterial(value)) as unknown[];
       if (operation.id === "agent/prompt") markAutomationRequest(sanitized[0]);

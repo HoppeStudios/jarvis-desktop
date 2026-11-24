@@ -47,3 +47,26 @@ test("AgentHost work controls require explicit structured acknowledgements", asy
   response = { aborted: true };
   assert.deepEqual(await bridge.stopWorkSession({ sessionId: "session-a", expectedTurnId: "turn-1", urgency: "immediate" }), { status: "requested" });
 });
+
+test("question receipt callbacks follow actual native success and preserve pending input on refusal",async t=>{
+ const server=await createServer({root:dirname(here),configFile:false,server:{middlewareMode:true,hmr:false,ws:false},appType:"custom",optimizeDeps:{noDiscovery:true,include:[]}});
+ t.after(()=>server.close());
+ const {createAgentHostBridge}=await server.ssrLoadModule("/electron/main/agent-host-bridge.ts");
+ const answers=[];let ack={ok:false},calls=0;
+ const bridge=createAgentHostBridge({channels:IPC.invoke,getHost:()=>null,log:()=>{},
+  invoke:async(channel)=>{assert.equal(channel,IPC.invoke.askToolResolve);calls++;return ack;},
+  onInputResolved:(request,resolution)=>answers.push({request,resolution})});
+ const sessionId="11111111-2222-4333-8444-555555555555",requestId="question-one";
+ const request={sessionId,requestId,toolCallId:"call-one",questions:[{question:"Choose?",options:["A","B"]}]};
+ const emit=event=>bridge.ingest({sessionId,turnId:"turn-one",ts:Date.now(),event});
+ emit({type:"agent_start"});emit({type:"asktool_request",request});
+ assert.equal(bridge.openAsk(sessionId).requestId,requestId);
+ await assert.rejects(bridge.resolveAskByRequestId({sessionId,requestId,answers:[["A"]]}));
+ assert.equal(answers.length,0);assert.equal(bridge.openAsk(sessionId).requestId,requestId);
+ ack={ok:true};await bridge.resolveAskByRequestId({sessionId,requestId,answers:[["A"]]});
+ assert.equal(answers.length,1);assert.equal(answers[0].request,request);assert.deepEqual(answers[0].resolution.answers,[["A"]]);assert.equal(bridge.openAsk(sessionId),null);
+ assert.equal(await bridge.resolveAskByRequestId({sessionId,requestId,answers:[["A"]]}),null);assert.equal(answers.length,1);assert.equal(calls,2);
+ const next={...request,requestId:"question-two"};emit({type:"asktool_request",request:next});
+ const open=bridge.openAsk(sessionId);await bridge.resolveOpenAsk({sessionId,inputId:open.inputId,answers:[["B"]]});
+ assert.equal(answers.length,2);assert.equal(answers[1].request.requestId,"question-two");assert.equal(bridge.openAsk(sessionId),null);
+});

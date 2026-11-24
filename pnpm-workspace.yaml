@@ -39,14 +39,21 @@ overrides:
   # Ships in the app. mermaid allows ^3.3.3 but resolves its own copy, so the
   # renderer would load an unpatched sanitizer next to our patched one.
   dompurify@3: '>=3.4.17 <4' # renderer SVG sanitizer, including Mermaid
-  fast-uri@3: '>=3.1.8 <4' # GHSA via ajv@8
+  fast-uri@3: '>=3.1.9 <4' # GHSA via ajv@8
   '@xmldom/xmldom@0.8': '>=0.8.15 <0.9' # GHSA via plist in electron-builder
   '@xmldom/xmldom@0.9': '>=0.9.12 <0.10' # GHSA via plist in electron-builder
   http-cache-semantics@4: '>=4.3.0 <5' # GHSA via @electron/get
   js-yaml@4: '>=4.3.2 <5' # CVE-2026-59870 via electron-updater and electron-builder
   source-map-js@1: '>=1.2.2 <2' # GHSA via Vite/PostCSS and Vitest
-  undici@6: '>=6.28.1 <7' # GHSA via node-gyp@12 and pi-ai peer
-  undici@7: '>=7.29.1 <8' # GHSA via Electron's @electron/get
+  undici@6: '>=6.29.1 <7' # reviewed November 2026 HTTP/TLS advisories
+  undici@7: '>=7.30.1 <8' # reviewed November 2026 HTTP/TLS advisories
+  electron@43: '>=43.8.1 <44' # GHSA-jr5w-w6x2-84p9
+  zod@4: '>=4.6.6 <5' # GHSA-mrhx-c7xc-m3w5
+  katex@0: '>=0.18.2 <0.19' # GHSA-238p-pmpm-9mq7
+  '@vitest/mocker@4': '>=4.1.12 <5'
+  minimatch@9: '>=11.0.1 <12' # patched API validated with build/test gates
+  minimatch@10: '>=11.0.1 <12'
+  vite@7: '>=7.3.7 <8' # Windows launch-editor validation advisory
   vue@3: '>=3.5.42 <4' # GHSA via the VitePress docs site
   # Docs site only. vitepress 1.6.4 asks for vite ^5.4.14 and no vite 5 is
   # patched — the fixes for all four advisories (server.fs.deny bypass, esbuild
@@ -54,7 +61,7 @@ overrides:
   # 6.4.3. vitepress 2, which uses vite 6 itself, is still alpha, so this crosses
   # a major its parent has not declared. Verified against `docs:build` and
   # `docs:dev` (serves 200); drop it for vitepress 2 once that ships stable.
-  vite@5: '>=6.4.3 <7'
+  vite@5: '>=6.4.4 <7'
 # pnpm defaults to `lowest-direct`, which makes a plain `pnpm update` resolve
 # every range to its floor — silently downgrading dependencies instead of
 # refreshing them. Pin the intent: `pnpm update` means "newest within range".

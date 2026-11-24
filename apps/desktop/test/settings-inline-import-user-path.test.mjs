@@ -295,8 +295,8 @@ window.settingsInlineMcpImportProbe = async () => {
 const urlAssets = {
   name: "local-url-assets",
   setup(pluginBuild) {
-    pluginBuild.onResolve({ filter: /\?url$/ }, ({ path, resolveDir }) => ({
-      path: join(resolveDir, path.slice(0, -4)),
+    pluginBuild.onResolve({ filter: /\?url(?:&no-inline)?$/ }, ({ path, resolveDir }) => ({
+      path: join(resolveDir, path.slice(0, path.indexOf("?"))),
       namespace: "local-url-asset",
     }));
     pluginBuild.onLoad({ filter: /.*/, namespace: "local-url-asset" }, async ({ path }) => ({

@@ -797,7 +797,7 @@ export function createSessionLaunchRuntime({
         backgroundJobContinuationEnabled: settings.backgroundJobContinuationEnabled === true && mode === "agent",
         // The session `/fast` switch only reaches a model the user allowed it
         // for in model settings (ADR 0334).
-        fastMode: session.fastMode === true && storedModel?.fastModeAllowed === true,
+        fastMode: (settings.jarvisEnabled === true || session.fastMode === true) && storedModel?.fastModeAllowed === true,
         ...(jevApiKey ? { jevApiKey } : {}),
         // A disabled feature is absent from the prompt rather than advertised
         // and refused on every call (ADR 0342 §13).

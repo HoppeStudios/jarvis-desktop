@@ -14,10 +14,14 @@ import {
   type LiveWorkCancelQueuedOperationResult,
   type LiveWorkStopOperationResult,
   type LiveVoiceWidgetAction,
+  type LiveAutomationRequest,
+  type LiveAutomationResponse,
+  type LiveAutomationControl,
+  type LiveAutomationResult,
 } from "@pi-desktop/shared";
 import type { LiveCallView } from "@pi-desktop/shared";
 
-async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
+export async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
   const bridge = window.piDesktop;
   if (!bridge) throw liveError("LIVE_INVALID_OWNER", "Live Voice bridge unavailable");
   const result = await bridge.invoke<T>(channel, ...args);
@@ -28,12 +32,16 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
 }
 
 export const liveVoiceApi = {
+  controlAutomation: (request: LiveAutomationControl) => invoke<LiveAutomationResult>(IPC.invoke.liveVoiceAutomationControl, request),
+  completeAutomation: (response: LiveAutomationResponse) => invoke<{ accepted: boolean }>(IPC.invoke.liveVoiceAutomationComplete, response),
+  onAutomationRequest: (listener: (request: LiveAutomationRequest) => void) => subscribe(IPC.event.liveVoiceAutomationRequest, listener),
   status: () => invoke<LiveStatus>(IPC.invoke.liveVoiceStatus),
   prepare: (request: LivePrepareRequest) => invoke<LivePreparedCall>(IPC.invoke.liveVoicePrepare, request),
   connect: (request: LiveConnectRequest) => invoke<LiveConnectResult>(IPC.invoke.liveVoiceConnect, request),
   setMuted: (request: { callId: string; muted: boolean; captureEpoch: number }) => invoke<LiveCallView>(IPC.invoke.liveVoiceSetMuted, request),
   reportMedia: (report: LiveMediaReport) => invoke<LiveCallView>(IPC.invoke.liveVoiceReportMedia, report),
   reportPlayback: (input: { callId: string; cursors: LivePlaybackCursor[] }) => invoke<{ ok: true }>(IPC.invoke.liveVoiceReportPlayback, input),
+  reportUserTurn: (input: { callId: string; itemId: string }) => invoke<{ ok: true }>(IPC.invoke.liveVoiceReportUserTurn, input),
   reportDelegation: (request: LiveDelegationRequest) => invoke<{ accepted: boolean }>(IPC.invoke.liveVoiceReportDelegation, request),
   reportControlApplied: (input: { callId: string; actionId: string; applied: boolean; errorCode?: string }) => invoke<{ ok: true }>(IPC.invoke.liveVoiceReportControlApplied, input),
   end: (request: LiveEndRequest) => invoke<{ ok: true }>(IPC.invoke.liveVoiceEnd, request),
@@ -61,7 +69,7 @@ export const liveVoiceApi = {
     subscribe(IPC.event.liveVoiceWidgetAction, listener),
 };
 
-function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
+export function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
   const bridge = window.piDesktop;
   if (!bridge) return () => undefined;
   return bridge.on(channel, (value) => listener(value as T));

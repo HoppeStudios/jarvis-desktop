@@ -10,6 +10,8 @@ import {
   type CloseBehavior,
   type KeybindingOverrides,
   type NativeMenuAction,
+  type AskToolRequest,
+  type AskToolResolution,
 } from "@pi-desktop/shared";
 import { installApplicationMenu } from "../application-menu";
 import { installGenUiProtocol } from "../gen-ui-protocol";
@@ -39,6 +41,7 @@ import type { HostProcess } from "../host-process";
 import type { Logger } from "../logger";
 import type { PluginRuntime } from "../plugin-runtime";
 import { runSessionListProbe } from "../session-list-probe";
+import { applyInstallSetup } from "../install-setup";
 import {
   ensureCrashDumpsDirectory,
   reportPreviousCrashDumps,
@@ -126,6 +129,7 @@ export type StartupDependencies = {
   getSidecar?: () => unknown;
   invokeSessionCollaboration?: (input: McpControlInvokeInput) => Promise<unknown>;
   onSessionQueueChange?: () => void;
+  onInputResolved?: (request: AskToolRequest,resolution: AskToolResolution) => void;
 };
 
 /**
@@ -284,6 +288,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       channels: IPC.invoke,
       getHost,
       isSessionBusy,
+      onInputResolved: deps.onInputResolved,
       onQueueChange: (event) => {
         sendToRenderer(IPC.event.agentQueueChanged, event);
         deps.onSessionQueueChange?.();
@@ -396,6 +401,11 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
           }),
         });
       }
+    }
+    // Only a launcher/installer can opt into this one-shot local setup file.
+    // It uses normal validated handlers and keeps credential setup outside MCP.
+    if (process.env.PI_DESKTOP_INSTALL_SETUP) {
+      await applyInstallSetup(process.env.PI_DESKTOP_INSTALL_SETUP, invokeIpc);
     }
     await ensureWindow();
     if (process.env.PI_DESKTOP_MCP_CONTROL === "1") {

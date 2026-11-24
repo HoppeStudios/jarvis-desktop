@@ -203,12 +203,14 @@ fn handle_with_workspace_policy(
                     .permission_mode
                     .clone()
                     .or_else(|| automatic.then(|| "ask".into())),
-                // Unattended runs keep the default tier (ADR 0334).
-                fast_mode: false,
+                // Jarvis explicitly opts all its coding sessions into Fast.
+                // The runtime still enforces the selected model's tier support.
+                fast_mode: settings.get("jarvisEnabled").and_then(Value::as_bool) == Some(true),
             };
             let uses_task_execution_settings = task.permission_mode.is_some()
                 || task.thinking_level.is_some()
-                || (task.provider_id.is_some() && task.model_id.is_some());
+                || (task.provider_id.is_some() && task.model_id.is_some())
+                || options.fast_mode;
             // A `reuse` task continues its own previous conversation, but only
             // while that conversation still exists and still belongs to the same
             // project; a deleted one, or a re-pointed task, opens a fresh one.
@@ -221,7 +223,14 @@ fn handle_with_workspace_policy(
             };
             let starting_fresh = reused.is_none();
             let session_id = match reused {
-                Some(session_id) => session_id,
+                Some(session_id) => {
+                    if options.fast_mode {
+                        sessions::configure_session_with_fast_mode(
+                            &st.db, &session_id, "agent", None, None, None, None, Some(true),
+                        ).map_err(|e| rpc_err(1000, e.to_string(), "INTERNAL"))?;
+                    }
+                    session_id
+                },
                 None => {
                     let session = if automatic || uses_task_execution_settings {
                         sessions::create_session_with_options(&st.db, options)
@@ -341,6 +350,27 @@ fn validate_execution_input(params: &Value) -> Result<(), JsonRpcError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn jarvis_scheduled_sessions_persist_fast_on_fresh_and_reused_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut st = AppState::open(dir.path()).unwrap();
+        st.handshook = true;
+        let task = handle(&st, "scheduled.create", json!({
+            "prompt":"Check", "cadence":"manual", "sessionMode":"reuse"
+        })).unwrap()["task"].clone();
+        let run = handle(&st, "scheduled.run", json!({"id":task["id"]})).unwrap();
+        let sid = run["sessionId"].as_str().unwrap();
+        assert!(!sessions::get_session(&st.db, sid).unwrap().unwrap().summary.fast_mode);
+        handle(&st, "scheduled.finishRun", json!({"runId":run["runId"],"status":"completed"})).unwrap();
+        st.db.set_setting("app", &json!({"jarvisEnabled":true})).unwrap();
+        let reused = handle(&st, "scheduled.run", json!({"id":task["id"]})).unwrap();
+        assert_eq!(reused["sessionId"], run["sessionId"]);
+        assert!(sessions::get_session(&st.db, sid).unwrap().unwrap().summary.fast_mode);
+        let fresh = handle(&st, "scheduled.create", json!({"prompt":"Check", "cadence":"manual"})).unwrap();
+        let fresh_run = handle(&st, "scheduled.run", json!({"id":fresh["task"]["id"]})).unwrap();
+        assert!(sessions::get_session(&st.db, fresh_run["sessionId"].as_str().unwrap()).unwrap().unwrap().summary.fast_mode);
+    }
 
     /// A run's transcript reports its automation ownership, the reader the
     /// Scheduled page uses sees the same flag, search carries it through the

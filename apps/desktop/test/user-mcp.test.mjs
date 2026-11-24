@@ -82,6 +82,15 @@ function projectDir(name = "project") {
   return realpathSync(mkdtempSync(join(tmpdir(), `pi-user-mcp-${name}-`)));
 }
 
+test("a server-scoped startup read never connects unrelated active servers",async(t)=>{
+ const root=stubDir();const runtime=new UserMcpRuntime({createClient:config=>new McpServerClient(config)});
+ t.after(()=>runtime.disposeAll());
+ runtime.setRecords([stubRecord(root,{id:"inbox"}),stubRecord(root,{id:"browser"})]);
+ const tools=await runtime.toolsForProject(null,"inbox");
+ assert.ok(tools.length);assert.ok(tools.every(tool=>tool.serverId==="inbox"));
+ assert.notEqual(runtime.statusFor("browser").state,"ready");
+});
+
 /** A saved record for the stub, scoped globally unless told otherwise. */
 function stubRecord(dir, overrides = {}) {
   return {

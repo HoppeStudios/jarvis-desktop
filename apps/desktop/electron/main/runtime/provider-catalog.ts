@@ -60,6 +60,7 @@ export type RuntimeSession = {
 };
 
 export type SessionCapabilityDefaults = {
+  jarvisEnabled?: boolean;
   defaultProviderId?: string;
   defaultModelId?: string;
 };
@@ -411,6 +412,7 @@ export function createProviderCatalogRuntime({
         return {
           defaultProviderId: settings?.defaultProviderId,
           defaultModelId: settings?.defaultModelId,
+          jarvisEnabled: settings?.jarvisEnabled,
         };
       } catch {
         return {};

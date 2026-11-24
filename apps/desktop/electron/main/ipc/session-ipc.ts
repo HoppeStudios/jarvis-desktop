@@ -31,6 +31,7 @@ import { readSessionCollaboration } from "../services/session-collaboration";
 import { localNativeProjectPaths, searchSessionsAcrossSources } from "../services/session-search";
 import type { IpcRegistrar } from "./types";
 import { getActiveRemoteHostsBoot } from "../bootstrap/remote-hosts.js";
+import { jarvisSessionPolicy } from "../jarvis/execution-policy";
 
 type RuntimeSession = {
   id?: string;
@@ -249,7 +250,7 @@ export function registerSessionIpc({
     const { providers, defaults } = await sessionCapabilityContext();
     const res = await currentHost.call<{ session?: (RuntimeSession & { id?: string }) | null }>(
       "session.create",
-      { ...input, mode, modeSnapshot },
+      { ...jarvisSessionPolicy(input, defaults), mode, modeSnapshot },
     );
     logger.app("session", "info", "session created", { sessionId: res.session?.id });
     if (!res.session) return res;
@@ -707,12 +708,12 @@ export function registerSessionIpc({
       // Every mode other than the builtin Agent and Plan carries the parsed
       // definition; the Host persists it as the session's policy snapshot.
       const modeSnapshot = await modeCatalog.snapshotFor(config.mode);
+      const { providers, defaults } = await sessionCapabilityContext();
       const result = await host.call<{ session?: RuntimeSession | null }>(
         "session.configure",
-        { id, ...config, ...(modeSnapshot ? { modeSnapshot } : {}) },
+        { id, ...jarvisSessionPolicy(config, defaults, false), ...(modeSnapshot ? { modeSnapshot } : {}) },
       );
       if (!result.session) return result;
-      const { providers, defaults } = await sessionCapabilityContext();
       const session = enrichSession(result.session, providers, defaults);
       if (
         config.providerId !== undefined ||

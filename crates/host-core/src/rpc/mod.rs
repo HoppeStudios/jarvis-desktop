@@ -4,6 +4,7 @@ mod computer_rpc;
 mod config_sync_rpc;
 mod file_batches;
 mod gen_ui;
+mod jarvis_cleanup;
 mod market_browse_rpc;
 mod modes_rpc;
 mod plugin_reviews_rpc;
@@ -3104,6 +3105,23 @@ async fn handle_request(
                 modes_rpc::notify(&tx, &run).await;
             }
             Ok(json!({ "session": session }))
+        }
+        "jarvis.coordinator.arm" | "jarvis.coordinator.deleteEmpty" => {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct CleanupParams { id: String, capability: String }
+            let p: CleanupParams = serde_json::from_value(params)
+                .map_err(|_| rpc_err(1002, "invalid cleanup parameters", "INVALID_PARAMS"))?;
+            if uuid::Uuid::parse_str(&p.id).is_err() || uuid::Uuid::parse_str(&p.capability).is_err() {
+                return Err(rpc_err(1002, "invalid cleanup identity", "INVALID_PARAMS"));
+            }
+            let mut st = state.lock().await;
+            let ok = if method == "jarvis.coordinator.arm" {
+                jarvis_cleanup::arm(&mut st, &p.id, &p.capability)
+            } else {
+                jarvis_cleanup::delete_empty(&mut st, &p.id, &p.capability)
+            }.map_err(|e| rpc_err(1000, e.to_string(), "INTERNAL"))?;
+            Ok(json!({ "ok": ok }))
         }
         "session.delete" => {
             let id = params
