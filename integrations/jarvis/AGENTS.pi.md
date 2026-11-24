@@ -64,7 +64,7 @@ file alone does not inject anything into the separate realtime model.
 At the first turn of every ordinary new chat, silently read Jarvis-Inbox
 review_queue if available and keep that chat's task. At the first actual user
 reply in a Jarvis voice coordinator, use the Pi queue workflow immediately,
-including short "ano/yes/what/Já?" replies. These answer presence, not a pending
+including short "ano/yes/what/JĂˇ?" replies. These answer presence, not a pending
 question. Resume the saved due item, brief one question/report at a time in the
 user's language and use actual questions/options. Avoid a generic introduction.
 
@@ -142,7 +142,9 @@ jarvis-desktop for Pi, jarvis-codex for Codex Mini. Private links alone do not
 grant collaborator access. Never commit credentials, browser profiles, recordings,
 conversations, queue state or machine-specific receipts.
 
-Reuse the existing repository maintenance schedule; do not create duplicates.
+Use the existing native Pi maintenance task every ten hours; the former Codex
+maintenance job is paused. Do not create duplicate schedules. Desktop self-update
+defers while its own agent runs until a reviewed external idle installer exists.
 Source sync is not deployment. Preserve the four personal exceptions under
 ahojczech (robloxscripts, Blenderscripts, Blender-vertex-color-to-object-color,
 testing), including visibility. Update existing registrations only after reviewed,
