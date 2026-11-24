@@ -21,6 +21,7 @@ export function registerLiveVoiceIpc(input: {
   widget: Pick<LiveVoiceWidget, "owns" | "setPresentation" | "requestAction" | "setOwnerState">;
   automationEnabled?: () => Promise<boolean>;
   createCoordinator?: () => Promise<string>;
+  captureStatus?: () => unknown;
 }): void {
   const { registrar, service, getMainWindow, widget } = input;
   const owner = (event: IpcMainInvokeEvent): LiveOwner => {
@@ -39,7 +40,8 @@ export function registerLiveVoiceIpc(input: {
     end: (identity, request) => service.end(identity, request),
     createCoordinator: input.createCoordinator,
   });
-  registrar.handle(IPC.invoke.liveVoiceAutomationStatus, () => automation.status());
+  registrar.handle(IPC.invoke.liveVoiceAutomationStatus, async () => ({...await automation.status(),
+    ...(input.captureStatus ? {queueCapture:input.captureStatus()} : {})}));
   registrar.handle(IPC.invoke.jarvisSettingsOpen, async () => {
     const window = getMainWindow();
     if (!window || window.isDestroyed()) throw Object.assign(new Error("Live owner unavailable"), { errorCode: "LIVE_INVALID_OWNER" });

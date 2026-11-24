@@ -23,6 +23,7 @@ import type {
   AgentQueueChangedEvent,
   AgentQueuePushRequest,
   AskToolResolution,
+  AskToolRequest,
   PendingInteractiveRequests,
   QueuedTurnSummary,
   RacpApprovalResult,
@@ -67,6 +68,7 @@ export type AgentHostBridgeOptions = {
   isSessionBusy?: (sessionId: string) => boolean;
   /** Renderer fan-out for queue changes (`agent/event/queueChanged`). */
   onQueueChange?: (event: AgentQueueChangedEvent) => void;
+  onInputResolved?: (request: AskToolRequest, resolution: AskToolResolution) => void;
   log: (level: "info" | "warn", message: string, data?: Record<string, unknown>) => void;
 };
 
@@ -225,7 +227,8 @@ export function createAgentHostBridge(options: AgentHostBridgeOptions) {
       }
     },
     async respondInput(resolution: AskToolResolution) {
-      await options.invoke(options.channels.askToolResolve, [resolution]);
+      const receipt=await options.invoke(options.channels.askToolResolve, [resolution]) as {ok?: boolean}|undefined;
+      if(receipt?.ok!==true)throw new RacpError("UNAVAILABLE","the runtime did not acknowledge the question answer");
     },
     isBusy(sessionId: string) {
       return options.isSessionBusy?.(sessionId) ?? false;
@@ -420,11 +423,14 @@ export function createAgentHostBridge(options: AgentHostBridgeOptions) {
     },
     /** Resolve one open ask through the Host-owned input path. */
     async resolveOpenAsk(input: { sessionId: string; inputId: string; answers: Array<string[] | null> }) {
-      return forIpc(() => agentHost.respondInput(DESKTOP_PRINCIPAL, {
+      const original=agentHost.pendingInputRequests(input.sessionId).find(entry=>entry.input.id===input.inputId)?.original;
+      const result=await forIpc(() => agentHost.respondInput(DESKTOP_PRINCIPAL, {
         inputId: input.inputId,
         answers: input.answers,
         context: { requestId: `live-voice:${input.sessionId}` },
       }));
+      if(original)try{options.onInputResolved?.(original,{sessionId:input.sessionId,requestId:original.requestId,answers:input.answers});}catch{options.log("warn","Jarvis answer capture callback failed",{sessionId:input.sessionId});}
+      return result;
     },
     /**
      * Resolve a Composer ask card through the Host-owned input path, matched
@@ -455,6 +461,7 @@ export function createAgentHostBridge(options: AgentHostBridgeOptions) {
       } finally {
         resolvingInputs.delete(key);
       }
+      try{options.onInputResolved?.(entry.original,resolution);}catch{options.log("warn","Jarvis answer capture callback failed",{sessionId});}
       return { ok: true };
     },
     lookupWorkAdmission(request: {

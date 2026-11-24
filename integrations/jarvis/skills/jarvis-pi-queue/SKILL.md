@@ -50,10 +50,13 @@ the native question order, with string arrays for actual replies and `null`
 only for explicit skips. The confirmation field is the tool's acknowledgement,
 not another user confirmation. Verify the native result before `record_answer`
 with the exact Pi origin, question IDs, actual answer, current revision and
-successful native request receipt. A failed/uncertain send leaves drafts pending;
+successful native request receipt if the native producer has not already recorded
+them. Re-read after native success; an already-recorded answer is not a reason
+to send again. A failed/uncertain send leaves drafts pending;
 inspect current native state before considering another send.
 
-For a producer, use the actual runtime-supplied session identity with
+Native managed questions and final replies are captured automatically. For a
+verified capture fallback, use the actual runtime-supplied session identity with
 `origin: {kind:"pi-desktop",sessionId}`. Register actual native questions with
 their request ID as `callId` and stable index-based question IDs. If that identity
 is unavailable, report capture unavailable; never infer it from a similar title.

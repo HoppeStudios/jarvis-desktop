@@ -31,10 +31,12 @@ import type { RuntimeState } from "./context";
 import type { FinishTurn } from "./plans";
 import { formatSkillToolContent, type LoadedSkillDocument } from "../skill-document";
 import { currentSystemProxyRelayUrl } from "../network-proxy";
+import { deliverCapturedEvent } from "./captured-event-delivery";
 
 export type SidecarRuntimeDependencies = {
   runtimeState: RuntimeState;
   observeBackgroundResult?: (event: AgentEventEnvelope) => void;
+  observeJarvisEvent?: (event: AgentEventEnvelope) => Promise<void> | undefined;
   steeringReplies: Set<string>;
   logger: Logger;
   sendToRenderer: (channel: string, payload: unknown) => void;
@@ -80,6 +82,7 @@ export type SidecarRuntimeDependencies = {
 export function createSidecarRuntime({
   runtimeState,
   observeBackgroundResult,
+  observeJarvisEvent,
   steeringReplies,
   logger,
   sendToRenderer,
@@ -120,8 +123,11 @@ export function createSidecarRuntime({
     // the current turn's state in Agent Host or the renderer. Persistence is a
     // separate call, so dropping it here still archives it as history.
     if (isStaleTerminalEvent(envelope)) return;
-    runtimeState.agentHostBridge?.ingest(envelope);
-    sendToRenderer(IPC.event.agentMessage, envelope);
+    // Keep the native pending input authoritative before capture. Only the ask
+    // card waits for its bounded queue write; streaming and work never wait.
+    const delivery=deliverCapturedEvent(envelope,{ingest:event=>runtimeState.agentHostBridge?.ingest(event),
+      capture:observeJarvisEvent,deliver:event=>sendToRenderer(IPC.event.agentMessage,event)});
+    void delivery?.catch(()=>logger.app("runtime","warn","question card delivery failed",{sessionId:envelope.sessionId}));
   };
   const activeToolCalls = new Map<
     string,

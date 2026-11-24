@@ -34,6 +34,24 @@ another chat. The selected busy chat and its draft remain untouched. Coordinator
 instructions live in the task-owned workspace and preserve user edits on upgrade.
 Its routine effort is `low`, the actual lowest supported GPT-6.1 Sol level.
 
+Managed Pi runtime events feed the shared Inbox without a second model call.
+The real `asktool_request` becomes authoritative in Agent Host first; its card
+waits for the bounded queue write. Capture failure still delivers the question
+and produces a rate-limited error toast plus secret-free status/log metadata.
+Permissions are separate events and never become ordinary queued questions.
+Live/Composer answer hooks run only after an explicit native success receipt;
+they match the exact source request and unchanged question wording/options,
+retain revisions and record only nonempty actual replies. Null/cancellation is
+not an answer. The native queue producer may race a skill receipt; re-read state
+instead of resending the human answer.
+
+Only an observed live start followed by a completed root assistant reply and
+terminal event produces a turn report. Imported history, streamed partials,
+delegate output, model reasoning and raw provider diagnostics are excluded.
+Long replies are explicitly excerpted at both ends, not called new summaries.
+Fresh Jarvis coordinator-workspace housekeeping is excluded. These observers do
+not replay old history, manufacture human input or prove overall task success.
+
 When Jarvis is enabled, normal session creation/configuration pins the coding
 model to GPT-6.1 Sol and stores Fast on, retaining an explicitly selected account
 and permission mode. New work defaults to medium; effort remains configurable.

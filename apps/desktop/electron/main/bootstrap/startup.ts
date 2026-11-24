@@ -10,6 +10,8 @@ import {
   type CloseBehavior,
   type KeybindingOverrides,
   type NativeMenuAction,
+  type AskToolRequest,
+  type AskToolResolution,
 } from "@pi-desktop/shared";
 import { installApplicationMenu } from "../application-menu";
 import { installGenUiProtocol } from "../gen-ui-protocol";
@@ -127,6 +129,7 @@ export type StartupDependencies = {
   getSidecar?: () => unknown;
   invokeSessionCollaboration?: (input: McpControlInvokeInput) => Promise<unknown>;
   onSessionQueueChange?: () => void;
+  onInputResolved?: (request: AskToolRequest,resolution: AskToolResolution) => void;
 };
 
 /**
@@ -285,6 +288,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       channels: IPC.invoke,
       getHost,
       isSessionBusy,
+      onInputResolved: deps.onInputResolved,
       onQueueChange: (event) => {
         sendToRenderer(IPC.event.agentQueueChanged, event);
         deps.onSessionQueueChange?.();

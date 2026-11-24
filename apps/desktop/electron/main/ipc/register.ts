@@ -85,6 +85,7 @@ export type RegisterIpcDependencies = {
   modeServices: ModeServices;
   liveCallService?: LiveCallService;
   liveVoiceWidget?: LiveVoiceWidget;
+  jarvisCaptureStatus?: () => unknown;
   restartForStorage: () => void;
   mcpOAuth?: McpOAuthManager;
   markLifecycleDialogRendererReady: (window: BrowserWindow) => boolean;
@@ -553,6 +554,7 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
   if (liveCallService && liveVoiceWidget) {
     registerLiveVoiceIpc({ registrar, service: liveCallService, getMainWindow, widget: liveVoiceWidget,
       automationEnabled: async () => (await getHost()?.call<{ jarvisEnabled?: boolean }>("settings.get"))?.jarvisEnabled === true,
+      captureStatus: dependencies.jarvisCaptureStatus,
       createCoordinator: () => createJarvisCoordinator({ dataDir,
         settings: async () => { const host = getHost(); if (!host) throw new Error("host unavailable"); return host.call("settings.get"); },
         invoke: invokeRegistered, createChannel: IPC.invoke.sessionCreate, configureChannel: IPC.invoke.sessionConfigure }),

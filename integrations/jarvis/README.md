@@ -56,7 +56,12 @@ the existing Startup registration. Installing the desktop alone does not switch
 an existing Codex listener. The native GPT greeting has passed installed playback
 and cancellation checks with a muted microphone; human listening and actual
 spoken wake recognition remain separate live acceptance checks. Empty-call
-cleanup and cross-origin answer routing remain separate deployment gates. Initial Live context
+cleanup and cross-origin answer routing remain separate deployment gates.
+Managed Pi questions and final root replies have a native event producer;
+successful native answers record exact request receipts and preserve partial
+progress. Capture failure is visible and never blocks the original question.
+Imported history and coordinator housekeeping are not replayed into the queue.
+Initial Live context
 contains the real bounded queue snapshot; AGENTS.md alone cannot inject context
 into a separate realtime model. Historical imports do not resume old executions
 or move pending native approval forms.

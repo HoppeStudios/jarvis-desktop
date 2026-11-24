@@ -84,10 +84,13 @@ pending. An imported chat is historical context, not its old live worker or nati
 approval form. A send receipt is not proof that work finished. Permissions remain
 in their real interface; spoken assent does not approve a host request.
 
-Ordinary work chats must register their own actual questions/options before asking
-and concise results/blockers before a final substantive response when a producer
-for their real engine/session exists. Never label a Pi session as Codex to force
-capture. Do not queue secrets, host approvals, small talk, quiet heartbeat output
+Managed Pi chats use the native AskUserQuestion tool for actual ordinary input.
+Jarvis captures its real session/request/questions before displaying the card and
+captures the final completed root reply under its real turn ID. Do not duplicate
+those native events with a guessed producer ID. If automatic capture is unavailable,
+use the explicit Inbox producer only with your verified engine/session identity
+and actual question/result. Never label a Pi session as Codex to force capture.
+Do not queue secrets, host approvals, small talk, quiet heartbeat output
 or voice housekeeping. Disclose a genuine capture failure without withholding
 the answer. Use the existing single local queue; never create a shadow queue under
 a virtualized LOCALAPPDATA or copy its private contents to GitHub.
