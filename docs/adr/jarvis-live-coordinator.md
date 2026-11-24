@@ -77,6 +77,16 @@ playback. A timeout End names the exact expected call and requests
 observed presence keep the live call. Manual wakes/End, startup cancellation,
 missing calls and unverified greeting playback never acquire cleanup authority.
 
+The listener retains its invitation while exactly one correlated End is in
+flight. Main samples its monotonic clock once and marks only a still-connected,
+unanswered early timeout with `invitationDeadlinePending: true`. Generic
+`already-on/deferred`, errors and other refusals never authorize a retry. After
+that positive receipt, the listener requires a matching status poll begun after
+the receipt, unchanged intent and no user/local speech, work or pending voice
+operation before issuing a new request ID/sequence. The original measured
+greeting time and echo gate are retained. Manual cancellation, pause or newer
+intent invalidates late receipts rather than resurrecting an invitation.
+
 Rust owns a private, process-local capability and a complete metadata snapshot
 for a newly helper-created coordinator. Main owns its call/intent/document
 identity and holds the existing per-session operation across busy checks, a

@@ -79,7 +79,22 @@ never accesses the session database or marks Inbox reports reviewed. Cross-origi
 answer forwarding remains a separate acceptance boundary. This source behavior
 still requires idle deployment and installed-client cleanup acceptance.
 
+An invitation is retained while its exact End request is in flight. If Main
+positively reports a still-pending deadline, the listener waits for a fresh
+matching call/intent poll before trying again with a new request identity. It
+never resets the original measured greeting time or duplicates in-flight ends.
+Actual/possible local speech, manual end/disable/newer intent, End errors and
+generic refusals cancel retry; a late receipt cannot recreate a cancelled
+invitation. Deploy the reviewed Main and listener together: older, unmarked
+receipts deliberately fail closed instead of being guessed retryable.
+
 ## Checks
+
+`pwsh -NoProfile -NonInteractive -File test-invitation.ps1` runs the pure
+invitation/receipt and actual dispatch-function tests, without starting a
+recognizer, worker process or call. From the repository root,
+`node --test apps/desktop/test/jarvis-invitation-deadline.test.mjs` spans the real
+Main result and PowerShell fold, including the two-clock deadline race.
 
 `python -m unittest discover -s . -p 'test_*.py'` checks transport dispatch and
 desired-state payload boundaries. `wake.ps1 -RootPath <installed-root> -Check`

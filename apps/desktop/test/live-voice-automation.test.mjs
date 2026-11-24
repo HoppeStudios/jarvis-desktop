@@ -45,7 +45,16 @@ test("Main refuses premature automatic timeout without ending the call",async()=
  const h=await invitation({}, {}, 9999);
  const result=await h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:h.state.call.callId,cleanupUnanswered:true});
  assert.equal(result.state,"already-on");assert.equal(result.coordinatorCleanup,"deferred");
+ assert.equal(result.invitationDeadlinePending,true);
  assert.equal(h.state.ended.length,0);assert.equal(h.cleanups(),0);
+});
+
+test("deadline refusal and pending receipt use one monotonic clock sample",async()=>{
+ let advance=false,reads=0;
+ const h=await invitation({now:()=>advance ? (reads++===0 ? 9999 : 10001) : 0});
+ advance=true;
+ const result=await h.manager.control({requestId:randomUUID(),action:"end",expectedCallId:h.state.call.callId,cleanupUnanswered:true});
+ assert.equal(result.invitationDeadlinePending,true);assert.equal(h.state.ended.length,0);
 });
 
 test("manual wakes and manual end never gain cleanup authority",async()=>{

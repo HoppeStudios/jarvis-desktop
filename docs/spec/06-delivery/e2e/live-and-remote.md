@@ -778,6 +778,13 @@ their separate platform acceptance.
   acknowledgement, active turn and queued prompt preserve the session. The
   focused Node/Rust tests cover admission races, changed revisions and dependent
   data, invalid owner/document, early timeout and unconfirmed/missing call state.
+- Run `node --test apps/desktop/test/jarvis-invitation-deadline.test.mjs` for
+  real Main results plus actual PowerShell listener folds. Reproduce an end
+  submitted just before Main expiry: retain the in-flight invitation, accept only
+  an explicit pending-deadline receipt, require a poll begun after that receipt,
+  and eventually end once after expiry. Preserve the original greeting time.
+  Speech, newer manual intent/disable, stale evidence and errors must prevent
+  retries; no duplicate in-flight ends or real voice/recognizer is involved.
 - Selection before final reservation cancels cleanup. Navigation after that
   reservation waits without mounting a target composer; Host refusal releases
   it, while unknown deletion outcome remains reserved until conclusive release

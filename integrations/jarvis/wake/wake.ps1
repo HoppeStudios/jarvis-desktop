@@ -6,6 +6,7 @@ $sourceRoot=if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'desktop_control.
 . (Join-Path $sourceRoot 'configuration.ps1')
 . (Join-Path $sourceRoot 'commands.ps1')
 . (Join-Path $sourceRoot 'state.ps1')
+. (Join-Path $sourceRoot 'invitation.ps1')
 $settings=Read-JarvisSettings (Join-Path $appRoot 'settings.json')
 Add-Type -AssemblyName System.Speech
 Add-Type -AssemblyName System.Windows.Forms
@@ -68,6 +69,7 @@ function Voice-Request([string]$action,[string]$reply,[bool]$automatic=$false,[s
  if($expected){$request.expectedCallId=$expected}
  if($cleanupUnanswered){$request.cleanupUnanswered=$true}
  $null=Start-Worker $request $reply $automatic
+ return $request
 }
 function Invoke-CommandAction([string]$action,[string]$reply){
  $script:invitation=$null;$script:lastAction=$action;$script:processed++
@@ -80,14 +82,14 @@ function Invoke-CommandAction([string]$action,[string]$reply){
   if(-not $script:paused){$recognizer.SetInputToDefaultAudioDevice();$recognizer.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple)}
   if($reply){Write-JsonAtomic $reply @{ok=$true;action=$action;outcome='settings-reloaded'}};return
  }
- if($action -eq 'disable'){$script:desired=$false;try{Voice-Request 'end' $reply}finally{Set-Paused $true};return}
+ if($action -eq 'disable'){$script:desired=$false;try{$null=Voice-Request 'end' $reply}finally{Set-Paused $true};return}
  if($action -notin @('toggle','wake','new-chat','end')){throw 'Unknown Jarvis command.'}
  if($action -in @('toggle','wake','new-chat') -and $script:paused){throw 'Jarvis is paused. Resume listening first.'}
  $persistent.lastInvitation=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
  if($action -eq 'toggle' -and $settings.activationBehavior -eq 'wake'){$action='wake'}
  if($action -eq 'toggle'){$script:desired=-not $script:desired;$action=if($script:desired){'wake'}else{'end'}}
  else{$script:desired=$action -ne 'end'}
- Voice-Request $action $reply
+ $null=Voice-Request $action $reply
 }
 function Register-Speech {
  Register-ObjectEvent -InputObject $recognizer -EventName SpeechRecognized -SourceIdentifier 'JarvisPiRecognized'|Out-Null
@@ -104,6 +106,7 @@ try {
    $time=$e.TimeGenerated.ToUniversalTime();if($name -eq 'JarvisPiRejected'){$audio=$e.SourceEventArgs.Result.Audio;if($audio){$time=$audio.StartTime.ToUniversalTime().Add($audio.Duration)}}
    if($time -gt $script:lastSpeech){$script:lastSpeech=$time};Remove-Event -EventIdentifier $e.EventIdentifier -ErrorAction SilentlyContinue
   }}
+  if($script:invitation -and -not (Test-JarvisInvitationCurrent $script:invitation $persistent.intentId $persistent.intentSequence $script:lastSpeech $script:paused)){$script:invitation=$null}
   foreach($e in @(Get-Event -SourceIdentifier 'JarvisPiRecognized' -ErrorAction SilentlyContinue)){
    try{
     $r=$e.SourceEventArgs.Result;$action=Get-JarvisAction $r;$audio=$r.Audio;$key=if($audio){[string]$audio.StartTime.Ticks+':'+$audio.AudioPosition.Ticks+':'+$audio.Duration.Ticks}else{[string]$e.EventIdentifier}
@@ -126,12 +129,12 @@ try {
    $jobs.Remove($job)|Out-Null
    if($job.request.operation -eq 'voice'){
     if($job.reply){Write-JsonAtomic $job.reply $response}
-    if($job.request.intentSequence -eq $persistent.intentSequence){
+    $script:invitation=Complete-JarvisInvitationEndAttempt $script:invitation $job.request $response $persistent.intentId $persistent.intentSequence $now $script:lastSpeech $script:paused
+    if($job.request.intentId -ceq $persistent.intentId -and $job.request.intentSequence -eq $persistent.intentSequence){
      if($response.ok){$script:lastOutcome=$response.result.state;$script:lastError=$null
       if($response.result.state -in @('ended','already-ended','cancelled')){$script:desired=$false}
       if($job.automatic -and $response.result.state -eq 'connected'){
-       $finished=if($response.result.greetingPlayed){[DateTimeOffset]::FromUnixTimeMilliseconds([long]$response.result.greetingFinishedAt).UtcDateTime}else{$null}
-       $script:invitation=@{callId=$response.result.callId;finished=$finished;sessionId=$response.result.coordinatorSessionId}
+       $script:invitation=New-JarvisInvitationState $job.request $response.result $now $job.request.presenceTimeoutSeconds
       }
      }else{Show-Error $response.error}
     }
@@ -140,20 +143,23 @@ try {
      $packet=$response.result;$script:call=$packet.call;$lastStatusResult=$now.ToString('o');$script:monitor=$packet.monitor;$script:queueError=$packet.queueError
      $voiceJobs=@($jobs|Where-Object {$_.request.operation -eq 'voice'}).Count
      $active=$packet.pendingRequestId -or ($packet.call -and $packet.call.phase -notin @('ended','failed'))
-     if($job.request.sequence -eq $persistent.intentSequence -and $voiceJobs -eq 0){$script:desired=[bool]$active}
+     if($job.request.sequence -eq $persistent.intentSequence -and $voiceJobs -eq 0 -and (-not $script:invitation -or $job.started -gt [datetime]$script:invitation.verifyAfter)){$script:desired=[bool]$active}
      if($script:invitation){
-      $invite=$script:invitation;$call=$packet.call
-      if(-not $call -or $call.callId -ne $invite.callId -or $call.phase -in @('ended','failed')){$script:invitation=$null}
-      elseif($call.userTurnCount -gt 0 -or $call.lastUserSpeechAt -or ($invite.finished -and $script:lastSpeech -ge $invite.finished.AddMilliseconds(400))){$script:invitation=$null}
-      elseif(-not $invite.finished -or $now -ge $invite.finished.AddSeconds([double]$settings.invitationTimeoutSeconds)){
-       $script:invitation=$null;$script:desired=$false;Voice-Request 'end' $null $false $invite.callId ([bool]$invite.finished)
+      $decision=Get-JarvisInvitationPoll $script:invitation $packet.call $persistent.intentId $persistent.intentSequence $job.request.sequence $job.started $now $script:lastSpeech $script:paused ($voiceJobs -gt 0 -or [bool]$packet.pendingRequestId)
+      $script:invitation=$decision.invitation
+      if($decision.sendEnd){
+       try{
+        $invite=$script:invitation
+        $request=Voice-Request 'end' $null $false $invite.callId ([bool]$invite.finished)
+        $script:invitation=Start-JarvisInvitationEndAttempt $invite $request
+       }catch{$script:invitation=$null;Show-Error $_.Exception.Message}
       }
      }elseif(-not $script:paused -and $settings.notificationsEnabled -and $packet.pendingCount -gt 0 -and -not $active -and $voiceJobs -eq 0){
       $last=[Math]::Max([double]$persistent.lastInvitation,[double]$packet.lastInvitation)
       if([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()-$last -ge [double]$settings.invitationCooldownMinutes*60000 -and [JarvisPiPresence]::Unlocked() -and [JarvisPiPresence]::IdleSeconds() -lt [double]$settings.returnIdleSeconds){
        # Any other active capture client defers automatic invitations. Unknown
        # CoreAudio state throws and fails closed; no input or session is changed.
-       try{$foreign=@([JarvisPiPresence]::CaptureProcesses()|Where-Object {$_ -ne $PID});if($foreign.Count -eq 0){$persistent.lastInvitation=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();Persist;$script:desired=$true;Voice-Request 'wake' $null $true}}catch{$script:queueError='Microphone ownership could not be verified; invitation deferred.'}
+       try{$foreign=@([JarvisPiPresence]::CaptureProcesses()|Where-Object {$_ -ne $PID});if($foreign.Count -eq 0){$persistent.lastInvitation=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();Persist;$script:desired=$true;$null=Voice-Request 'wake' $null $true}}catch{$script:queueError='Microphone ownership could not be verified; invitation deferred.'}
       }
      }
     }else{$script:queueError=$response.error}

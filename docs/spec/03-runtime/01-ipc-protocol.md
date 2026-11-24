@@ -32,6 +32,15 @@ default ten) with `presenceGreeting: true`. Main starts a monotonic deadline
 from verified greeting completion receipt. Only `end` with an exact
 `expectedCallId` may request `cleanupUnanswered: true`. This is intent,
 not proof of emptiness. The result adds `coordinatorCleanup: deleted | deferred`.
+A successful early timeout may additionally return `invitationDeadlinePending:
+true` with `state: already-on` only while the same connected, owned, unanswered
+call is still before Main's deadline. The refusal and marker share one monotonic
+clock sample. This marker is absent on speech/work/owner refusals and errors; it
+is retry evidence, never permission to end early or delete. The listener keeps
+one in-flight invitation attempt and requires a new matching silent/current
+status poll begun after that receipt before retrying with a fresh request ID and
+sequence. Manual intent changes or possible speech cancel it; arbitrary errors
+and unmarked refusals are not retried.
 Manual End, ordinary sessions and cancelled/unverified startup are never deleted.
 `userTurnCount` is explicitly zero on call views before any actual final turn;
 missing call/presence state never proves silence.

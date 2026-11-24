@@ -56,6 +56,8 @@ export type LiveAutomationResult = {
   playbackBlocked?: boolean;
   coordinatorSessionId?: string;
   coordinatorCleanup?: "deleted" | "deferred";
+  /** Positive timeout-retry evidence, never a generic refusal or emptiness proof. */
+  invitationDeadlinePending?: true;
   greetingPlayed?: boolean;
   greetingFinishedAt?: number;
   greetingEvidence?: LiveGreetingEvidence;

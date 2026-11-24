@@ -97,9 +97,17 @@ export class LiveVoiceAutomation {
     let status = await this.deps.status();
     if (request.expectedCallId && status.call?.callId !== request.expectedCallId) throw fail("LIVE_STALE_CALL");
     if (request.action === "end" || request.action === "toggle" && (this.pending || live(status.call))) {
-      if (request.cleanupUnanswered && this.invitation && live(status.call) && this.invitation.callId === request.expectedCallId &&
-          (this.now() < this.invitation.expiresAt || !this.unanswered(status.call, this.invitation))) {
-        return { completion: Promise.resolve({ requestId: request.requestId, state: "already-on", callId: status.call?.callId, coordinatorCleanup: "deferred" }) };
+      const invitation = this.invitation;
+      if (request.cleanupUnanswered && invitation && live(status.call) && invitation.callId === request.expectedCallId) {
+        const now = this.now();
+        const unanswered = this.unanswered(status.call, invitation);
+        if (now < invitation.expiresAt || !unanswered) {
+          const owner = this.deps.owner();
+          const deadlinePending = now < invitation.expiresAt && status.call?.phase === "connected" && unanswered && owner &&
+            ownerKey(owner) === ownerKey(invitation.owner) && owner.url === invitation.owner.url;
+          return { completion: Promise.resolve({ requestId: request.requestId, state: "already-on", callId: status.call?.callId,
+            coordinatorCleanup: "deferred", ...(deadlinePending ? { invitationDeadlinePending: true } : {}) }) };
+        }
       }
       // Cleanup holds admission through deletion, so a newer start cannot replace
       // the call evidence while it is being checked. Manual End is unchanged.
