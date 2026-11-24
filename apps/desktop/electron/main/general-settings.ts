@@ -5,7 +5,7 @@ const ENUMS: Record<string, readonly string[]> = {
   updatePreference: ["automatic", "manual"],
 };
 const IDS = new Set(["defaultProviderId", "defaultModelId"]);
-const BOOLEANS = new Set(["codemodeEnabled", "backgroundJobContinuationEnabled"]);
+const BOOLEANS = new Set(["codemodeEnabled", "backgroundJobContinuationEnabled", "jarvisEnabled", "jarvisQueueEnabled"]);
 
 export function validateGeneralSettingsPatch(value: unknown): Record<string, unknown> {
   const invalid = (): never => {

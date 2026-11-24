@@ -511,6 +511,10 @@ export class LiveCallService {
         slot.workScopeOpened = true;
       }
       const workEnabled = slot.workScopeOpened && Boolean(this.deps.receiveWorkCandidate);
+      const startupContext = workEnabled
+        ? await this.deps.loadWorkStartupContext?.({ callId: slot.callId, signal: slot.abort.signal })
+        : undefined;
+      this.assertCurrent(slot);
       const context: LiveAdapterContext = {
         callId: slot.callId,
         binding: slot.binding,
@@ -518,7 +522,7 @@ export class LiveCallService {
         auth: result.auth as LiveResolvedAuth,
         signal: slot.abort.signal,
         onEvent: (event) => this.onAdapterEvent(slot, event),
-        ...(workEnabled ? { workProfile: createLiveWorkProfile(slot.workBinding, slot.workContextConsent) } : {}),
+        ...(workEnabled ? { workProfile: createLiveWorkProfile(slot.workBinding, slot.workContextConsent, startupContext) } : {}),
         ...(workEnabled && this.deps.receiveWorkCandidate
           ? {
               onWorkCandidate: async (candidate, deliverReceipt) => {

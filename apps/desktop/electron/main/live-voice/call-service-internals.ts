@@ -51,6 +51,7 @@ export type LiveCallServiceDeps = {
   scheduleWorkFeedbackWake?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   resolveWorkBinding?: (target: NonNullable<LivePrepareRequest["workTarget"]> & { contextEnabled: boolean }) => Promise<LiveWorkBinding>;
   openWorkScope?: (callId: string, binding?: LiveWorkBinding) => void;
+  loadWorkStartupContext?: (input: { callId: string; signal: AbortSignal }) => Promise<string | undefined>;
   closeWorkScope?: (callId: string) => void;
   resolveWorkSelection?: (input: { callId: string; workBindingRevision: number; selectionRef: string }) => Promise<
     | { kind: "session"; sessionId: string }

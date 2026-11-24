@@ -1,5 +1,29 @@
 # E2E Scenarios: Conversation and Sessions
 
+## E2E-JARVIS-local-voice-control
+
+Verify authenticated MCP start through the real trusted renderer, preserving the
+selected account/voice and normal microphone permissions. Verify authoritative
+Main connection readback, explicit post-connect unmute, playback-blocked reports,
+same-ID retry, changed-payload conflict, two rapid distinct toggles, cancellation
+before prepare, timeout, lost owner/frame, and late completion after a newer call.
+An expectedCallId mismatch leaves the current call untouched. End remains usable
+with Jarvis disabled and waits for normal media release. No foreground/input or
+clipboard operations are permitted. Fixture evidence is separate from actual
+provider/audio acceptance.
+
+## E2E-JARVIS-initial-live-queue
+
+With Jarvis and queue sharing enabled, begin a work-enabled Live call against a
+fixture provider. Verify the actual initial adapter context includes the saved
+due cursor item, exact unresolved question/options, origin and revision before
+the adapter connects. Answered and deferred items are omitted. Startup does not
+acknowledge presence or modify queue state. Disabled sharing makes no MCP call;
+discovery connects only the registered inbox, not browser or other servers.
+Cancellation, unavailable/invalid data, oversized items and deadline expiry have
+explicit bounded outcomes and never create a second queue or invent answers.
+Repeat against the installed Codex Live binding for real-provider acceptance.
+
 ## E2E-JARVIS-reviewed-history-import
 
 Enable the loopback MCP control endpoint in an isolated profile. Scan external

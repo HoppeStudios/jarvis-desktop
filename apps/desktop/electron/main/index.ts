@@ -911,6 +911,7 @@ const liveVoiceWidget = createLiveVoiceWidget({
 });
 
 const liveCallService = createLiveCallService({
+  userMcp, refreshUserMcp,
   getHost,
   getMainWindow,
   getAgentHostBridge: () => mainState.agentHostBridge,

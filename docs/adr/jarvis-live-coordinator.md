@@ -1,0 +1,42 @@
+# Jarvis Live coordinator
+
+Status: Implementation candidate
+
+## Decision
+
+Keep Codex Mini's helper in `jarvis-codex` and the Pi Desktop integration in
+this fork. The selected desktop OAuth provider and voice remain authoritative.
+Jarvis is explicitly enabled in local settings. Its work agents use the user's
+GPT-6.1 Sol default, Fast preference and current-user Auto permission mode;
+permission mode never changes OS privileges or independent tool policies.
+
+A Jarvis Live call reads the existing registered Jarvis-Inbox queue before
+constructing the provider's initial work profile. This is a bounded, read-only
+snapshot containing the saved cursor and one due unresolved question/report.
+It is supplied through the adapter's real startup context, not by claiming that
+AGENTS.md reached the realtime model. Queue text is data. Loading, greeting or
+speaking never acknowledges presence, records an answer or reviews an item.
+After an actual answer, the work agent re-reads revisions and uses the queue's
+real origin/receipt protocol. Unavailable/oversized context is explicit.
+
+An authenticated local MCP voice-control surface may request the trusted main
+renderer to start media. The renderer remains the real owner of microphone,
+WebRTC, playback and permission leases. Main never fabricates a renderer event,
+injects desktop input, changes voice bindings or focuses a window to start it.
+End requests use the existing Main call lifecycle and media-release guards.
+Distinct repeated wake requests toggle; retried request IDs are idempotent.
+Ending during startup cancels that startup, rather than waiting for GPT.
+
+The Pi wake installation replaces the existing task-owned wake registration
+only after acceptance. The persistent queue is shared and never expires.
+Automatic invitations wait for no current call and keep a persistent checklist;
+neither silence nor interruption completes queue work. Browser playback or
+microphone permission failures remain visible errors, without a silent fallback
+to another voice, global input or a weakened browser policy.
+
+## Validation boundary
+
+Unit/fixture checks establish profile construction, transport, cancellation,
+scope and persistence contracts. Actual provider connection, selected voice
+playback, microphone and double-wake behavior require installed-client evidence.
+Do not call navigation a voice transfer or import a live execution state.

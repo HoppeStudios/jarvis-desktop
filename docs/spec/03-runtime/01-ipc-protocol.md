@@ -1,5 +1,35 @@
 # 01. IPC Protocol
 
+### Authenticated local Live control
+
+`voice/status` reads actual Live readiness, the current call and a pending local
+start. `voice/control({requestId,action,workSessionId?,initialMuted?,expectedCallId?})`
+supports start/toggle/end and requires the existing MCP dangerous-operation
+acknowledgement. Starts require explicit `jarvisEnabled`; ending is still possible
+when disabled. UUID request IDs are cached for up to 128 requests in the process;
+same-ID retries are idempotent and a changed payload is a conflict.
+
+Main sends a bounded request only to its verified trusted owner frame. That
+renderer uses its normal controller, permission lease and WebRTC start path,
+then replies through sender/frame-validated completion IPC. A second toggle
+while starting cancels the exact owner/request and creates the existing prepare
+tombstone. End uses normal Main lifecycle/media-release guards, independent of
+the model's willingness to finish. Late completions cannot affect newer calls.
+Optional expectedCallId protects automatic cleanup from ending another call.
+No global input, clipboard, foreground change or provider/voice substitution.
+
+### Jarvis initial Live queue context
+
+Local optional boolean preferences `jarvisEnabled` and `jarvisQueueEnabled` opt
+into a bounded queue snapshot in the actual provider startup work profile.
+Before connecting a work-enabled call, Main discovers only the active registered
+Jarvis-Inbox server and calls `review_queue`. It includes one due unresolved
+question/report selected by the saved cursor, origin, revision and total count.
+Disabled settings do not read the queue. Reads have a four-second deadline and
+call-scoped cancellation; failure is explicit context rather than invented data.
+No presence acknowledgement, answer or queue state change occurs on startup.
+The renderer, provider selection, media lease and existing call scope are intact.
+
 ### Curated local general settings control
 
 `pi-desktop/settings/configureGeneral(patch)` accepts only existing provider/model
