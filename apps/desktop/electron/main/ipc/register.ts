@@ -44,7 +44,8 @@ import { registerLiveVoiceIpc } from "./live-voice-ipc";
 import type { LiveCallService } from "../live-voice/call-service";
 import { createJarvisCoordinator } from "../jarvis/coordinator";
 import { JarvisCoordinatorCleanup, RendererCleanupProbe, createCleanupDocumentWatcher } from "../jarvis/coordinator-cleanup";
-import { liveOwnerFrame } from "../live-voice/owner";
+import { ComposerDraftStatusProbe } from "../jarvis/composer-draft-status";
+import { liveOwnerFrame, liveOwnerFromWebContents } from "../live-voice/owner";
 import type { ComposerSuggestionAnswer } from "../services/composer-suggestion";
 import type { LiveVoiceWidget } from "../live-voice/widget-window";
 import type { IpcRegistrar } from "./types";
@@ -555,6 +556,14 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     registerVoiceIpc({ registrar, voiceService });
   }
   if (liveCallService && liveVoiceWidget) {
+    const draftProbe = new ComposerDraftStatusProbe((owner, request) => {
+      const frame = liveOwnerFrame(getMainWindow(), owner);
+      if (!frame) throw new Error("composer renderer unavailable");
+      frame.send(IPC.event.composerDraftStatusRequest, request);
+    });
+    const refreshDraftOwner = createCleanupDocumentWatcher(
+      () => getMainWindow()?.webContents ?? null, () => draftProbe.invalidate(),
+    );
     const cleanupProbe = new RendererCleanupProbe((owner, request) => {
       const frame = liveOwnerFrame(getMainWindow(), owner);
       if (!frame) throw new Error("cleanup renderer unavailable");
@@ -578,6 +587,12 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
       automationEnabled: async () => (await getHost()?.call<{ jarvisEnabled?: boolean }>("settings.get"))?.jarvisEnabled === true,
       captureStatus: dependencies.jarvisCaptureStatus,
       cleanupProbe, coordinatorCleanup,
+      composerDraftStatus: async () => {
+        refreshDraftOwner();
+        const window = getMainWindow();
+        return draftProbe.read(window ? liveOwnerFromWebContents(window, window.webContents) : null);
+      },
+      completeComposerDraftStatus: (owner, raw) => draftProbe.complete(owner, raw),
       createCoordinator: () => createJarvisCoordinator({ dataDir,
         settings: async () => { const host = getHost(); if (!host) throw new Error("host unavailable"); return host.call("settings.get"); },
         invoke: invokeRegistered, createChannel: IPC.invoke.sessionCreate, configureChannel: IPC.invoke.sessionConfigure }),

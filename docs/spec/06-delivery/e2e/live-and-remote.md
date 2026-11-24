@@ -794,3 +794,20 @@ their separate platform acceptance.
 - Before deployment, the owning idle installer must verify no active app work or
   call, then perform installed-client acceptance. This fixture does not prove
   real human listening/speech, OS media release or actual renderer IPC delivery.
+
+## E2E-JARVIS-composer-draft-metadata
+
+- Launch the built desktop with an isolated home/profile, private loopback MCP
+  and background startup. No user account, provider, microphone or live queue
+  is used. Query native `app/composerDraftStatus` on an empty shell.
+- Type fixture text only through the isolated renderer DOM. Query metadata,
+  switch to another fixture chat and verify the inactive cache still blocks
+  emptiness. Restore/clear the draft, switch away and verify an empty result.
+  Focus an empty fixture editor through page-local focus emulation and verify
+  busy status. No fixture draft is submitted as a message.
+- Check replies contain counts only. Unit coverage additionally checks unknown
+  readers, attachment-only and whitespace drafts, thrown readers, nonce reuse,
+  owner mismatch, malformed counts, document invalidation and timeouts.
+- Automation: `node scripts/e2e-composer-draft-status.mjs` plus desktop
+  `composer-draft-status.test.mjs`. This verifies real Main/renderer/MCP delivery
+  with fixture drafts, not a shutdown lease or installed-client acceptance.

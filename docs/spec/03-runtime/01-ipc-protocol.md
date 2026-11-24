@@ -2864,3 +2864,21 @@ window, and the owner's own failure code arrives through the main window, which
 is the frame that ran the action. A widget action never changes call state by
 itself: it is forwarded to the owner frame, and the resulting state reaches the
 widget through the same authoritative view the owner receives.
+
+### Composer draft metadata for maintenance
+
+`appComposerDraftStatus` reads a fresh main-renderer observation. Main issues a
+single-use random nonce through `composerDraftStatusRequest`; only the trusted
+main frame can answer `appComposerDraftStatusResponse` with that nonce and
+bounded counts: `cachedDrafts`, `liveDrafts`, `busyEditors`, `unknownEditors`,
+and boolean `pendingPrefill`. No draft text, IDs or attachment paths cross this
+channel. Counts include inactive cached drafts and unsaved DOM content; focus,
+composition, attachment preparation and pending prefills prevent an empty result.
+
+Main binds requests to the exact frame/URL and invalidates them on navigation,
+renderer loss or replacement. Timeouts, missing readers and malformed replies
+never report empty. The external MCP exposes only `app/composerDraftStatus`
+as a read; its internal response channel is not callable through MCP.
+`known: true, empty: true` is a past observation, not a shutdown reservation.
+Installers must separately establish idle work/calls and prevent input races;
+this read alone never authorizes termination or bypasses a refusal.

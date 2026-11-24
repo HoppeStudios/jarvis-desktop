@@ -191,6 +191,7 @@ const spec = (
 const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("appGetVersion", "app/getVersion", "Return PI-Desktop and host versions.", "read", []),
   spec("appHealth", "app/health", "Return host health.", "read", []),
+  spec("appComposerDraftStatus", "app/composerDraftStatus", "Read counts of cached, live, busy and unknown composers, without draft content. An observation is not a restart lease; check calls/work separately.", "read", []),
   spec("appGetOnboarding", "app/getOnboarding", "Read onboarding state.", "read", []),
   spec("appDismissOnboarding", "app/dismissOnboarding", "Dismiss onboarding.", "write", []),
   spec("systemFontsList", "app/systemFonts", "List installed system fonts.", "read", []),

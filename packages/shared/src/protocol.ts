@@ -78,6 +78,8 @@ export const IPC = {
     appGetVersion: "pi-desktop/app/getVersion",
     appOpenFeedback: "pi-desktop/app/openFeedback",
     appHealth: "pi-desktop/app/health",
+    appComposerDraftStatus: "pi-desktop/app/composerDraftStatus",
+    appComposerDraftStatusResponse: "pi-desktop/app/composerDraftStatusResponse",
     appGetOnboarding: "pi-desktop/app/getOnboarding",
     appDismissOnboarding: "pi-desktop/app/dismissOnboarding",
     /**
@@ -510,6 +512,7 @@ export const IPC = {
     settingsChanged: "pi-desktop/app/event/settingsChanged",
     liveVoiceAutomationRequest: "pi-desktop/voice/live/event/automationRequest",
     sessionCleanupRequest: "pi-desktop/session/event/cleanupRequest",
+    composerDraftStatusRequest: "pi-desktop/app/event/composerDraftStatusRequest",
     configSyncChanged: "pi-desktop/configSync/event/changed",
     /** A chat-started background task started, exited, or was stopped. */
     backgroundTasksChanged: "pi-desktop/backgroundTasks/event/changed",

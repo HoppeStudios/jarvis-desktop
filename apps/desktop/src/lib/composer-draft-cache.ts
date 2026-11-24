@@ -92,13 +92,28 @@ export function sameDraftFileReference(
 
 // DOM ownership is separate from the lazily serialized cache. A switching
 // composer may still own both the outgoing and incoming editor slots.
-const liveDrafts = new Set<() => readonly string[]>();
-export function registerLiveComposerDraft(keys: () => readonly string[]): () => void {
-  liveDrafts.add(keys);
+type LiveDraftState = "empty" | "nonempty" | "busy" | "unknown";
+const liveDrafts = new Map<() => readonly string[], (() => LiveDraftState) | undefined>();
+export function registerLiveComposerDraft(keys: () => readonly string[], read?: () => LiveDraftState): () => void {
+  liveDrafts.set(keys, read);
   return () => { liveDrafts.delete(keys); };
 }
 export function hasLiveComposerDraft(key: string): boolean {
-  return [...liveDrafts].some(keys => keys().includes(key));
+  return [...liveDrafts.keys()].some(keys => keys().includes(key));
+}
+
+/** Include inactive cached slots and lazy DOM editors; never expose their text. */
+export function inspectComposerDrafts(): Omit<import("@pi-desktop/shared").ComposerDraftCounts, "pendingPrefill"> {
+  const result = { cachedDrafts: 0, liveDrafts: 0, busyEditors: 0, unknownEditors: 0 };
+  for (const draft of cache.values()) if (draft.text.length || draft.fileReferences.length) result.cachedDrafts++;
+  for (const read of liveDrafts.values()) {
+    let state: LiveDraftState = "unknown";
+    try { state = read?.() ?? "unknown"; } catch { /* An unreadable editor is never empty. */ }
+    if (state === "nonempty") result.liveDrafts++;
+    else if (state === "busy") result.busyEditors++;
+    else if (state !== "empty") result.unknownEditors++;
+  }
+  return result;
 }
 
 const cache = new Map<string, CachedComposerDraft>();

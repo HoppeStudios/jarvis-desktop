@@ -178,3 +178,10 @@ remain explicit user actions. Paused recognition and queue state survive updates
 Native settings navigation reveals the window with `showInactive`, never the
 widget path that transfers foreground. Receipt visibility is not rendered-page
 proof. The separate wake-settings form also avoids activation on initial show.
+
+Maintenance can inspect composer metadata through a nonce-bound Main/renderer
+exchange rather than assuming that the selected empty editor represents every
+chat. The external read carries counts only and fails closed on unknown state.
+It does not reserve shutdown or erase in-memory drafts. A future installer must
+still coordinate input/work/media quiescence before replacing the app; the old
+client's first restart cannot gain this capability from source changes alone.

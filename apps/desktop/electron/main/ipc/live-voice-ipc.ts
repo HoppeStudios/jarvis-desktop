@@ -1,6 +1,6 @@
 import type { JarvisCoordinatorCleanup, RendererCleanupProbe } from "../jarvis/coordinator-cleanup";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
-import { IPC, type LiveEndReason, type LiveVoiceWidgetAction } from "@pi-desktop/shared";
+import { IPC, type ComposerDraftStatus, type LiveEndReason, type LiveVoiceWidgetAction } from "@pi-desktop/shared";
 import type { LiveCallService as LiveCallServiceImpl, LiveOwner } from "../live-voice/call-service";
 import { liveOwnerFromInvoke, liveOwnerFromWebContents, liveOwnerFrame } from "../live-voice/owner";
 import { LiveVoiceAutomation } from "../live-voice/automation";
@@ -25,6 +25,8 @@ export function registerLiveVoiceIpc(input: {
   captureStatus?: () => unknown;
   coordinatorCleanup?: JarvisCoordinatorCleanup;
   cleanupProbe?: RendererCleanupProbe;
+  composerDraftStatus?: () => Promise<ComposerDraftStatus>;
+  completeComposerDraftStatus?: (owner: LiveOwner, raw: unknown) => { accepted: boolean };
 }): void {
   const { registrar, service, getMainWindow, widget } = input;
   const owner = (event: IpcMainInvokeEvent): LiveOwner => {
@@ -46,6 +48,9 @@ export function registerLiveVoiceIpc(input: {
     cleanupCoordinator: (identity, id, verify) => input.coordinatorCleanup?.cleanup(identity, id, verify) ?? Promise.resolve("deferred"),
   });
   registrar.handleWithEvent(IPC.invoke.sessionCleanupResponse, async (event, raw) => input.cleanupProbe?.complete(owner(event), raw) ?? { accepted: false });
+  registrar.handle(IPC.invoke.appComposerDraftStatus, async () => input.composerDraftStatus?.() ?? { known: false, empty: false });
+  registrar.handleWithEvent(IPC.invoke.appComposerDraftStatusResponse, async (event, raw) =>
+    input.completeComposerDraftStatus?.(owner(event), raw) ?? { accepted: false });
   registrar.handle(IPC.invoke.liveVoiceAutomationStatus, async () => ({...await automation.status(),
     ...(input.captureStatus ? {queueCapture:input.captureStatus()} : {})}));
   registrar.handle(IPC.invoke.jarvisSettingsOpen, async () => {

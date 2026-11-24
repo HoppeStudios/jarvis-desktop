@@ -74,3 +74,10 @@ carry no additional permission and do not bypass normal call/owner guards.
 `settings/openJarvis` requests the existing native Live settings page without
 focusing/restoring the window. Its receipt confirms command delivery; inspect the
 rendered page separately before claiming visibility.
+
+`app/composerDraftStatus` returns fresh counts for inactive cached drafts,
+unsaved live editors, busy/unknown readers and pending prefills, without text
+or attachment paths. Unknown/timeout state is never empty. This is a read-only
+observation, not a lease permitting an updater to close the app; active work,
+calls and concurrent input require separate guards. Older clients do not expose
+this operation, so their first restart still needs an actual draft-state check.

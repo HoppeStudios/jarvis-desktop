@@ -33,6 +33,18 @@ test("reviewed migration forwards only scan candidate identities to the existing
   assert.deepEqual(calls, [{ channel: "pi-desktop/session/importRun", args: [candidates] }]);
 });
 
+test("composer status exposes a read but never the renderer acknowledgement channel", async () => {
+  const calls = [];
+  const controller = createMcpControlController({
+    channels: { appComposerDraftStatus: "pi-desktop/app/composerDraftStatus",
+      appComposerDraftStatusResponse: "pi-desktop/app/composerDraftStatusResponse" },
+    invoke: async (channel, args) => { calls.push({ channel, args }); return { known: false, empty: false }; },
+  });
+  assert.deepEqual(controller.operations.map(op => [op.id, op.risk]), [["app/composerDraftStatus", "read"]]);
+  await controller.invoke({ operation: "app/composerDraftStatus", args: [] });
+  assert.deepEqual(calls, [{ channel: "pi-desktop/app/composerDraftStatus", args: [] }]);
+});
+
 test("scheduled control uses existing validated handlers and requires explicit mutation acknowledgement", async () => {
   const calls = [];
   const channels = Object.fromEntries(["List", "ListRuns", "Create", "Update", "Delete", "Execute", "Run"]
