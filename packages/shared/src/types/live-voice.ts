@@ -9,6 +9,8 @@ export type LiveAutomationControl = {
   /** Create an independent coordinator; never reuse the selected draft. */
   freshCoordinator?: boolean;
   initialMuted?: boolean;
+  /** Fixed presence invitation after a verified connection; never arbitrary speech. */
+  presenceGreeting?: boolean;
   expectedCallId?: string;
 };
 export type LiveAutomationRequest = {
@@ -16,12 +18,15 @@ export type LiveAutomationRequest = {
   action: "start" | "cancel";
   workSessionId?: string;
   initialMuted?: boolean;
+  presenceGreeting?: boolean;
 };
 export type LiveAutomationResponse = {
   requestId: string;
   callId?: string;
   cancelled?: boolean;
   errorCode?: string;
+  greetingPlayed?: boolean;
+  greetingFinishedAt?: number;
 };
 export type LiveAutomationResult = {
   requestId: string;
@@ -30,6 +35,8 @@ export type LiveAutomationResult = {
   muted?: boolean;
   playbackBlocked?: boolean;
   coordinatorSessionId?: string;
+  greetingPlayed?: boolean;
+  greetingFinishedAt?: number;
 };
 
 export const LIVE_ADAPTER_IDS = [

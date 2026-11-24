@@ -57,6 +57,8 @@ describe("Live wire profiles", () => {
       .toMatchObject({ kind: "transcript", id: "turn-two", role: "user" });
     expect(parseCodexMessage({ type: "output_transcript.added", event_id: "reply-three", text: "Third reply" })[0])
       .toMatchObject({ kind: "transcript", id: "reply-three", role: "assistant" });
+    expect(parseCodexMessage({ type: "response.output_audio_transcript.done", item_id: "greeting", transcript: "Are you present, sir?" })[0])
+      .toMatchObject({ kind: "transcript", id: "greeting", role: "assistant", final: true });
     expect(parseCodexMessage({ type: "output_transcript.added", text: "Hello there." })).toEqual([
       { kind: "transcript", role: "assistant", text: "Hello there.", final: true, id: "codex-output" },
       { kind: "activity", assistantSpeaking: true },

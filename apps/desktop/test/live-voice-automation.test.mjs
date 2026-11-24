@@ -93,3 +93,12 @@ test("fresh coordinator creates once on activation and never on retry or toggle 
  assert.equal(created,1);
  assert.throws(()=>parseAutomationControl({...input,workSessionId:"other"}));
 });
+
+test("presence greeting runs only after real connection and reports verified playback separately",async()=>{
+ let call=null;const order=[],responses=[];
+ const receiver=new LiveAutomationReceiver({refreshStatus:async()=>{},getSnapshot:()=>({starting:false,stopping:false,call}),
+  start:async()=>{order.push("connect");call=connected();},toggleMute:async()=>{},
+  presenceGreeting:async()=>{assert.equal(call.phase,"connected");order.push("greet");return{greetingPlayed:true,greetingFinishedAt:12345};}},async r=>responses.push(r));
+ await receiver.receive({requestId:randomUUID(),action:"start",presenceGreeting:true});
+ assert.deepEqual(order,["connect","greet"]);assert.equal(responses[0].greetingPlayed,true);assert.equal(responses[0].greetingFinishedAt,12345);
+});

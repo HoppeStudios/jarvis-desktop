@@ -51,12 +51,12 @@ export function parseCodexMessage(value: unknown): LiveWireEvent[] {
   if (["output_audio_buffer.stopped", "turn.done", "response.done"].includes(event.type)) {
     return [{ kind: "turn-complete" }, { kind: "activity", assistantSpeaking: false }];
   }
-  if (event.type === "input_transcript.added" && typeof event.text === "string") {
-    const transcript = text(event.text);
+  if (["input_transcript.added", "conversation.item.input_audio_transcription.completed"].includes(event.type)) {
+    const transcript = text(event.text ?? event.transcript);
     return transcript ? [{ kind: "transcript", role: "user", text: transcript, final: true, id: text(event.item_id, 256) || text(event.event_id, 256) || "codex-input" }] : [];
   }
-  if (event.type === "output_transcript.added" && typeof event.text === "string") {
-    const transcript = text(event.text);
+  if (["output_transcript.added", "response.output_audio_transcript.done", "response.audio_transcript.done"].includes(event.type)) {
+    const transcript = text(event.text ?? event.transcript);
     return [
       ...(transcript ? [{ kind: "transcript" as const, role: "assistant" as const, text: transcript, final: true, id: text(event.item_id, 256) || text(event.event_id, 256) || "codex-output" }] : []),
       { kind: "activity", assistantSpeaking: true },

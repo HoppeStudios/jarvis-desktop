@@ -16,6 +16,7 @@ import { liveVoiceApi, liveError } from "./live-voice-api";
 import { LivePcmSession } from "./live-pcm-session";
 import pcmWorkletUrl from "./pcm-worklet.js?url";
 import { LiveAutomationReceiver } from "./live-automation-receiver";
+import { playPresenceGreeting, type PresenceGreetingResult } from "./presence-greeting";
 
 export type LiveVoiceSnapshot = {
   status: LiveStatus | null;
@@ -65,6 +66,8 @@ type StartResources = {
   abort: AbortController;
   completedControlActions?: Set<string>;
   transcriptSequence?: number;
+  lastMeasuredAudioAt?: number;
+  lastProviderTurnCompleteAt?: number;
 };
 
 /** Window-lifetime owner for Live media. React subscriptions never own it. */
@@ -117,6 +120,25 @@ export class LiveCallController {
     } catch (error) {
       this.patch({ errorCode: errorCode(error) });
     }
+  }
+
+  async presenceGreeting(): Promise<PresenceGreetingResult> {
+    const call = this.snapshot.call;
+    const resources = call && [...this.resources.values()].find(item => item.callId === call.callId);
+    if (!call || call.adapterId !== "codex-live" || !resources || resources.channel?.readyState !== "open") return { greetingPlayed: false };
+    const startedAt = Date.now();
+    return playPresenceGreeting({ signal: resources.abort.signal,
+      state: () => ({
+        connected: this.snapshot.call?.callId === call.callId && this.snapshot.call.phase === "connected",
+        playbackBlocked: this.snapshot.call?.playbackBlocked === true,
+        transcriptMatches: this.snapshot.transcripts.some(item => item.role === "assistant" && item.final && item.timestamp >= startedAt && /are you (?:present|there|here)[,\s]+sir/i.test(item.text)),
+        measuredAudio: (resources.lastMeasuredAudioAt ?? 0) >= startedAt,
+        playbackActive: resources.playbackActive === true,
+        turnComplete: (resources.lastProviderTurnCompleteAt ?? 0) >= startedAt,
+      }),
+      send: () => resources.channel!.send(JSON.stringify({ type: "response.create", event_id: `jarvis-presence-${crypto.randomUUID()}`,
+        response: { instructions: "Say exactly: Are you present, sir? Then wait silently for the user's reply. Do not call a tool or read queued items yet." } })),
+    });
   }
 
   async start(options: { workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean; requestId?: string; signal?: AbortSignal } = {}): Promise<void> {
@@ -416,6 +438,9 @@ export class LiveCallController {
           case "activity":
             void liveVoiceApi.reportMedia({ callId, kind: "activity", userSpeaking: event.userSpeaking, assistantSpeaking: event.assistantSpeaking }).catch((error) => this.failActive(callId, error));
             break;
+          case "turn-complete":
+            resources.lastProviderTurnCompleteAt = Date.now();
+            break;
           case "error":
             void this.failActive(callId, liveError(event.code));
             break;
@@ -460,7 +485,9 @@ export class LiveCallController {
         if (context.state !== "running") report(true);
         else {
           analyser.getFloatTimeDomainData(samples);
-          report(isPlaybackSignalActive(samples));
+          const active = isPlaybackSignalActive(samples);
+          if (active) resources.lastMeasuredAudioAt = Date.now();
+          report(active);
         }
         resources.playbackMonitorFrame = requestAnimationFrame(sample);
       };

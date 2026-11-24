@@ -9,10 +9,11 @@ const live = (call: LiveStatus["call"]): boolean => Boolean(call && !["ended", "
 export function parseAutomationControl(raw: unknown): LiveAutomationControl {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
   const v = raw as Record<string, unknown>;
-  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "freshCoordinator", "initialMuted", "expectedCallId"].includes(k)) ||
+  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "freshCoordinator", "initialMuted", "presenceGreeting", "expectedCallId"].includes(k)) ||
     !uuid(v.requestId) || !["start", "toggle", "end"].includes(String(v.action)) ||
     (v.workSessionId !== undefined && (typeof v.workSessionId !== "string" || !v.workSessionId.trim() || v.workSessionId.length > 256)) ||
     (v.initialMuted !== undefined && typeof v.initialMuted !== "boolean") ||
+    (v.presenceGreeting !== undefined && typeof v.presenceGreeting !== "boolean") ||
     (v.expectedCallId !== undefined && !uuid(v.expectedCallId)) ||
     (v.freshCoordinator !== undefined && typeof v.freshCoordinator !== "boolean") ||
     (v.freshCoordinator === true && v.workSessionId !== undefined)) throw fail("INVALID_PARAMS");
@@ -92,7 +93,7 @@ export class LiveVoiceAutomation {
       }, this.deps.timeoutMs ?? 60_000);
       this.pending = { request, owner, resolve, reject, timer, coordinatorSessionId };
       try {
-        this.deps.send(owner, { requestId: request.requestId, action: "start", workSessionId: coordinatorSessionId ?? request.workSessionId, initialMuted: request.initialMuted !== false });
+        this.deps.send(owner, { requestId: request.requestId, action: "start", workSessionId: coordinatorSessionId ?? request.workSessionId, initialMuted: request.initialMuted !== false, presenceGreeting: request.presenceGreeting === true });
       } catch {
         clearTimeout(timer); this.pending = null; reject(fail("LIVE_INVALID_OWNER"));
       }
@@ -140,10 +141,13 @@ export class LiveVoiceAutomation {
   async complete(owner: LiveOwner, raw: unknown): Promise<{ accepted: boolean }> {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
     const response = raw as LiveAutomationResponse;
-    if (Object.keys(raw).some(k => !["requestId", "callId", "cancelled", "errorCode"].includes(k)) ||
+    if (Object.keys(raw).some(k => !["requestId", "callId", "cancelled", "errorCode", "greetingPlayed", "greetingFinishedAt"].includes(k)) ||
       !uuid(response.requestId) || response.callId !== undefined && !uuid(response.callId) ||
       response.cancelled !== undefined && typeof response.cancelled !== "boolean" ||
-      response.errorCode !== undefined && !/^LIVE_[A-Z0-9_]{1,70}$/.test(response.errorCode)) throw fail("INVALID_PARAMS");
+      response.errorCode !== undefined && !/^LIVE_[A-Z0-9_]{1,70}$/.test(response.errorCode) ||
+      response.greetingPlayed !== undefined && typeof response.greetingPlayed !== "boolean" ||
+      response.greetingFinishedAt !== undefined && (!Number.isFinite(response.greetingFinishedAt) || response.greetingFinishedAt <= 0 || response.greetingFinishedAt > Date.now() + 1000) ||
+      response.greetingPlayed === true && response.greetingFinishedAt === undefined) throw fail("INVALID_PARAMS");
     const pending = this.pending;
     if (!pending || pending.request.requestId !== response.requestId) return { accepted: false };
     if (ownerKey(owner) !== ownerKey(pending.owner) || owner.url !== pending.owner.url) throw fail("LIVE_INVALID_OWNER");
@@ -161,7 +165,9 @@ export class LiveVoiceAutomation {
       const call = status.call;
       if (!call || call.callId !== response.callId || call.phase !== "connected") pending.reject(fail("LIVE_STALE_CALL"));
       else pending.resolve({ requestId: response.requestId, state: "connected", callId: call.callId, muted: call.muted, playbackBlocked: call.playbackBlocked,
-        ...(pending.coordinatorSessionId ? { coordinatorSessionId: pending.coordinatorSessionId } : {}) });
+        ...(pending.coordinatorSessionId ? { coordinatorSessionId: pending.coordinatorSessionId } : {}),
+        ...(pending.request.presenceGreeting ? { greetingPlayed: response.greetingPlayed === true,
+          ...(response.greetingPlayed && response.greetingFinishedAt ? { greetingFinishedAt: response.greetingFinishedAt } : {}) } : {}) });
     }
     return { accepted: true };
   }

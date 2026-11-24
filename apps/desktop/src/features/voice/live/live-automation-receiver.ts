@@ -5,6 +5,7 @@ type Controller = {
   getSnapshot: () => { starting: boolean; stopping: boolean; call: LiveCallView | null };
   start: (options: { requestId: string; signal: AbortSignal; workTarget?: { workSessionId: string } }) => Promise<void>;
   toggleMute: () => Promise<void>;
+  presenceGreeting?: () => Promise<{ greetingPlayed: boolean; greetingFinishedAt?: number }>;
 };
 
 /** Handles only Main's trusted event. No desktop input or foreground operation. */
@@ -35,6 +36,8 @@ export class LiveAutomationReceiver {
       await this.controller.start({ requestId: request.requestId, signal: abort.signal, ...(request.workSessionId ? { workTarget: { workSessionId: request.workSessionId } } : {}) });
       if (abort.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "LIVE_STALE_CALL" });
       if (request.initialMuted === false && this.controller.getSnapshot().call?.muted) await this.controller.toggleMute();
+      if (request.presenceGreeting) Object.assign(response, await this.controller.presenceGreeting?.() ?? { greetingPlayed: false });
+      if (abort.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "LIVE_STALE_CALL" });
       const call = this.controller.getSnapshot().call;
       if (!call || call.phase !== "connected") throw Object.assign(new Error("not connected"), { code: "LIVE_STALE_CALL" });
       response.callId = call.callId;

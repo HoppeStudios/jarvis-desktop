@@ -55,3 +55,13 @@ Unit/fixture checks establish profile construction, transport, cancellation,
 scope and persistence contracts. Actual provider connection, selected voice
 playback, microphone and double-wake behavior require installed-client evidence.
 Do not call navigation a voice transfer or import a live execution state.
+
+An optional fixed presence greeting is requested only after the call connects.
+The first implementation probes the documented Realtime `response.create` event
+on the selected Codex Live data channel; private-endpoint compatibility requires
+actual installed evidence. It does not add a fake human turn, change voice/model
+or overwrite the session's queue instructions. A successful send is unconfirmed:
+`greetingPlayed` requires the matching assistant transcript, measured running
+AudioContext remote signal, provider turn completion and drained playback. The
+finished timestamp can start the unanswered-invitation window. Suspended audio,
+timeout, cancellation or a rejected protocol event never count as playback.
