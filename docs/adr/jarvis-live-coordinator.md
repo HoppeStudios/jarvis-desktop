@@ -77,6 +77,9 @@ To migrate the single existing maintenance job, stage it disabled, validate the
 native execution path, pause its old registration, then enable the new task.
 Use an elapsed 600-minute interval for ten hours rather than a clock-hour cron.
 The Scheduled workspace's existing ten-second refresh reflects external edits.
+Jarvis opt-in persists Fast on fresh and reused scheduled sessions as well as
+interactive sessions. Ordinary scheduled sessions retain ADR 0334's default-off
+behavior; the selected model's runtime capability gate remains authoritative.
 
 Unit/fixture checks establish profile construction, transport, cancellation,
 scope and persistence contracts. Actual provider connection, selected voice
