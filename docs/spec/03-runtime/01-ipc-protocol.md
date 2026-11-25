@@ -2882,3 +2882,29 @@ as a read; its internal response channel is not callable through MCP.
 `known: true, empty: true` is a past observation, not a shutdown reservation.
 Installers must separately establish idle work/calls and prevent input races;
 this read alone never authorizes termination or bypasses a refusal.
+
+
+## Opt-in shared Codex chats
+
+With a reviewed local `CodexPiChatSync/runtime/bridge.json`, Main routes linked
+sessions to the authenticated native Codex owner. Additive source `codex`
+identifies this authority. Canonical Codex IDs use `remote:codex-shared:<id>`;
+registered Pi aliases retain their original sidebar IDs and explicit private
+origin mapping. A Pi ID is never supplied as a Codex thread ID.
+
+`session/get`, rename, open, prompt, status, stop, abort, steering, pending
+interactions and their real user resolutions preserve their existing IPC
+response envelopes. Native events become existing `AgentEvent` notifications,
+including stable message IDs and optimistic-user reconciliation. History uses
+bounded native item pages with scoped opaque cursor translation. Model edits,
+local tools, terminal and transcript mutations are disabled by capabilities.
+Unsupported routed operations do not fall back to a local agent or database.
+
+Busy, read-only, scheduled, remote and Jarvis coordinator sessions retain their
+owner. Eligible local sessions are linked on first access using full history
+from the real host. Source records remain unchanged. Connection loss rejects
+in-flight requests without resubmitting mutations; refresh reconnects and
+resubscribes. Native approval grants are never inferred from Pi defaults.
+
+See [the ownership ADR](../../adr/codex-shared-chat-owner.md) and the independent
+[transport and installer source](https://github.com/HoppeStudios/codex-pi-chat-sync).

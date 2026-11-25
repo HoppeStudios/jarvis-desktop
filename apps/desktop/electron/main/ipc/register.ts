@@ -26,6 +26,7 @@ import type { ModeServices } from "../runtime/mode-services";
 import { registerProviderIpc } from "./provider-ipc";
 import { registerScheduledIpc } from "./scheduled-ipc";
 import { registerSessionIpc } from "./session-ipc";
+import { getCodexChatBridge } from "../codex/codex-chat-bridge";
 import { registerSettingsIpc } from "./settings-ipc";
 import { registerStorageIpc } from "../storage/ipc";
 import { registerConfigSyncIpc } from "./config-sync-ipc";
@@ -219,23 +220,22 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
   const ipcHandlers = new Map<string, (...args: any[]) => Promise<any>>();
   const handle = (channel: string, fn: (...args: any[]) => Promise<any>) => {
     const handler = async (...args: any[]) => {
+      await getCodexChatBridge()?.prepareCall(channel, args);
+      const router = getBackendRouter?.();
+      if (router) {
+        const outcome = await router.route(channel, args);
+        if (outcome !== ROUTE_LOCAL) return outcome.value;
+      }
       const result = await fn(...args);
       traySessions.observeInvoke(channel);
       taskbarUnreadBadge.observeInvoke(channel);
       return result;
     };
     ipcHandlers.set(channel, handler);
-    // The interception seam for remote-host routing: a renderer call whose
-    // session is owned by a paired remote host is served over RACP-WS; every
-    // other call (and every internal invoke, which never reaches this wrapper)
-    // runs the existing local handler byte-for-byte unchanged.
+    // Renderer and native-control callers use the same ownership routing.
+    // Unbound local sessions retain their existing domain handlers.
     ipcMain.handle(channel, async (_event, ...args) =>
       wrap(async () => {
-        const router = getBackendRouter?.();
-        if (router) {
-          const outcome = await router.route(channel, args);
-          if (outcome !== ROUTE_LOCAL) return outcome.value;
-        }
         return handler(...args);
       }),
     );

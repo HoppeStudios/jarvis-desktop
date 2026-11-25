@@ -1146,6 +1146,7 @@ registerApplicationStartup({
   plugins,
   isSessionBusy,
   getHost,
+  getSidecar,
   getMainWindow,
   sendToRenderer,
   applyDevelopmentBranding,

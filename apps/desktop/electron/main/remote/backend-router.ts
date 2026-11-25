@@ -143,12 +143,20 @@ export function sessionIdForCall(args: readonly unknown[]): string | null {
 export function createBackendRouter(options: BackendRouterOptions = {}): BackendRouter {
   const log = options.log ?? (() => undefined);
   const sessionBackends = new Map<string, RemoteBackend>();
+  // Explicit, trusted Pi-to-Codex bindings may retain an existing Pi sidebar ID.
+  // Only a registered exact identity may override local routing.
+  const registeredIdFor = (args: readonly unknown[]): string | null => {
+    const first = args[0];
+    const id = typeof first === "string" ? first : first && typeof first === "object"
+      ? ((first as { sessionId?: unknown; id?: unknown }).sessionId ?? (first as { id?: unknown }).id) : null;
+    return typeof id === "string" && sessionBackends.has(id) ? id : null;
+  };
 
   const resolveBackend = (
     channel: string,
     args: readonly unknown[],
   ): RemoteBackend | null => {
-    const sessionId = sessionIdForCall(args);
+    const sessionId = registeredIdFor(args) ?? sessionIdForCall(args);
     if (!sessionId) return null;
     const backend = sessionBackends.get(sessionId);
     if (!backend) return null;
@@ -164,9 +172,9 @@ export function createBackendRouter(options: BackendRouterOptions = {}): Backend
     },
     resolveBackend,
     async route(channel, args) {
-      const sessionId = sessionIdForCall(args);
+      const sessionId = registeredIdFor(args) ?? sessionIdForCall(args);
       if (!sessionId) return ROUTE_LOCAL;
-      if (!parseRemoteSessionId(sessionId)) {
+      if (isRemoteSessionId(sessionId) && !parseRemoteSessionId(sessionId)) {
         throw Object.assign(new Error("malformed remote session id"), { errorCode: "INVALID_ARGUMENT" });
       }
       const backend = sessionBackends.get(sessionId);

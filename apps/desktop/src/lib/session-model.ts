@@ -122,7 +122,7 @@ export function lastUsedSessionModel(
 export function sessionNeedsModelPin(
   session: SessionModelRef & { source?: string },
 ): boolean {
-  if (session.source === "pi-native" || session.source === "remote") return false;
+  if (session.source === "pi-native" || session.source === "remote" || session.source === "codex") return false;
   return !session.providerId || !session.modelId;
 }
 

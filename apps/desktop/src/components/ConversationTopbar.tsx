@@ -315,7 +315,7 @@ export function ConversationTopbar({
               )}
             </h1>
           )}
-          {remoteSession && <span className="thread-item-source">{t("remote:remote")} · {activeSession?.remoteHostLabel}</span>}
+          {remoteSession && <span className="thread-item-source">{activeSession?.source === "codex" ? "Codex" : <>{t("remote:remote")} · {activeSession?.remoteHostLabel}</>}</span>}
         </div>
       </div>
 

@@ -508,7 +508,7 @@ export function createQueueSlice({
           if (submitted?.abortResolution && (await submitted.abortResolution)) {
             return false;
           }
-          if (current?.source !== "pi-native" && current?.source !== "remote") {
+          if (current?.source !== "pi-native" && current?.source !== "remote" && current?.source !== "codex") {
             get().rememberModel(current ?? {});
           }
           if (startGoal) resetAcceptedGoalInput(startedIn, selection);

@@ -314,7 +314,7 @@ export function createSessionSlice({
      * both keep their own transports.
      */
     restorePendingInteractive: async (sessionId) => {
-      if (!sessionId || sessionId.startsWith("native-pi:")) return;
+      if (!sessionId) return;
       const session = get().sessions.find(
         (candidate) => candidate.id === sessionId,
       );

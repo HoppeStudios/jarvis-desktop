@@ -997,9 +997,11 @@ export function Sidebar({
 
   const temporarySessions = useMemo(
     () => filtered
-      .filter((session) => !normalizeProjectPath(session.projectPath) && !(isRemoteSession(session) && session.remoteProjectId))
+      .filter((session) => (!normalizeProjectPath(session.projectPath) ||
+        (session.source === "codex" && !projectEntriesByPath.has(normalizeProjectPath(session.projectPath) ?? ""))) &&
+        !(isRemoteSession(session) && session.remoteProjectId))
       .sort(compareSessions),
-    [filtered, compareSessions],
+    [filtered, compareSessions, projectEntriesByPath],
   );
   // Recent sessions: temporary chats plus every session shown under a retained
   // project, so a project's newest work stays visible while it is folded.
@@ -2203,7 +2205,7 @@ export function Sidebar({
             <span className="thread-item-source" title="Native Pi session">Pi</span>
           ) : null}
           {isRemoteSession(session) && !options?.insideRemoteSection ? (
-            <span className="thread-item-source" title={session.remoteHostLabel}>{t("remote:remote")}</span>
+            <span className="thread-item-source" title={session.remoteHostLabel}>{session.source === "codex" ? "Codex" : t("remote:remote")}</span>
           ) : null}
           <WorktreeBadge worktree={session.worktree} sessionId={session.id} />
           <span className="thread-item-title">{taskTitle(session.title)}</span>
