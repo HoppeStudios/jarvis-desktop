@@ -1,5 +1,11 @@
 # Pi Jarvis wake listener
 
+## [Donate to HoppeStudios](https://ko-fi.com/hoppestudios)
+
+[Project](https://github.com/HoppeStudios/jarvis-desktop) |
+[Installation](../README.md) |
+[Releases](https://github.com/HoppeStudios/jarvis-desktop/releases)
+
 The Pi fork owns this listener. The independent Codex Mini implementation stays
 in `HoppeStudios/jarvis-codex`. One selected backend uses the existing **Jarvis
 Wake** Startup shortcut and `Local\JarvisWakeWord` mutex. Do not run two listeners
@@ -62,6 +68,13 @@ Status is a past verified observation. Disable ends voice and releases wake
 capture; resume is explicit. Routine results stay in the tray/status; only errors
 notify. Tray **Pi Desktop settings** opens native Jarvis settings. Wake phrase
 settings edit the existing configuration with concurrent-change validation.
+
+Native connection plays a short rising cue; ending a connected call plays a
+falling cue. These original tones use Windows audio, not TTS. Worker receipts
+give immediate cues and status polls cover calls ended in the desktop UI.
+Private bounded call-ID history prevents duplicate sounds across polling,
+overlapping workers and listener restarts. Failed starts remain silent. Audio
+failure never changes the native call result. Status-only diagnostics are silent.
 
 Automatic invitations require a due queue item, unlocked recently active PC,
 enabled notifications, no Pi call/startup, no other active microphone client,
