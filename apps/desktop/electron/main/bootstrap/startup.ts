@@ -1,4 +1,5 @@
 import { app, BrowserWindow, crashReporter, Menu, safeStorage } from "electron";
+import { readSidebarBackup } from "../sidebar-preferences";
 import { createScheduledRunner } from "../runtime/scheduled-runner";
 import { onConfirmedQuit } from "./confirmed-quit";
 import {
@@ -330,6 +331,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       log: (level, message, data) => logger.app("runtime", level, message, { data }),
     });
     const control = createMcpControlController({
+      readSidebarPreferences: () => readSidebarBackup(dataDir),
       invoke: invokeIpc,
       channels: IPC.invoke,
       invokeSessionCollaboration: deps.invokeSessionCollaboration,

@@ -10,6 +10,12 @@ otherwise read Pi-Desktop `session/list` and match meaning/title approximately,
 ignoring accents, case and small speech errors. Ask one short question for a real
 ambiguity. Do not create a duplicate or read whole transcripts for a clear title.
 
+Session lists are paginated and exclude archives by default. Use the actual
+`session/list` query with `search` and `includeArchived: true` for an older named
+chat, and follow `nextOffset` before declaring a miss. Archive search retrieves
+metadata without restoring, deleting or duplicating the history. Retain the
+exact returned ID when opening the existing chat.
+
 In text, `session/open` navigates the existing chat through the native MCP. In an
 active Live call, inspect the real app-supported target-switch operations. Use a
 supported target-selection path and verify its actual work binding; do not hang up

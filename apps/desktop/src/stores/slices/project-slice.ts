@@ -513,7 +513,7 @@ export function createProjectSlice({
         const archived = !sessionIsArchived(id, state.sessionMeta);
         const sessionMeta = {
           ...state.sessionMeta,
-          [id]: { ...(state.sessionMeta[id] || {}), archived },
+          [id]: { ...(state.sessionMeta[id] || {}), archived, ...(!archived ? { restoredAt: Date.now() } : {}) },
         };
         const sessions = state.sessions.map((session) =>
           session.id === id ? { ...session, archived } : session,
@@ -542,7 +542,7 @@ export function createProjectSlice({
       set((state) => ({
         sessionMeta: {
           ...state.sessionMeta,
-          [id]: { ...(state.sessionMeta[id] || {}), archived: false },
+          [id]: { ...(state.sessionMeta[id] || {}), archived: false, restoredAt: Date.now() },
         },
         sessions: state.sessions.map((session) =>
           session.id === id ? { ...session, archived: false } : session,

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { SESSION_COLLABORATION_OPERATIONS } from "./session-collaboration-control";
 import { markAutomationRequest } from "./runtime/user-message-provenance";
 import { validateGeneralSettingsPatch } from "./general-settings";
+import { sessionListQuery, sessionListPage } from "./mcp-session-page";
 
 /** A small JSON Schema subset used by MCP's tools/list response. */
 export type McpJsonSchema = {
@@ -207,7 +208,7 @@ const CONTROL_OPERATION_SPECS: OperationSpec[] = [
   spec("agentAbort", "agent/abort", "Abort an active Agent turn.", "write", ["request"]),
   spec("agentStop", "agent/stop", "Request a graceful Agent stop.", "write", ["request"]),
   spec("agentGetStatus", "agent/getStatus", "Read Agent runtime status.", "read", ["sessionId"]),
-  spec("sessionList", "session/list", "List durable sessions.", "read", []),
+  spec("sessionList", "session/list", "List sessions in bounded pages; excludes archived by default. Query supports includeArchived, offset, limit and search.", "read", ["query?"]),
   spec("sessionCreate", "session/create", "Create a durable session.", "write", ["input"]),
   spec("sessionFork", "session/fork", "Fork a session.", "write", ["input"]),
   spec("sessionGet", "session/get", "Read a session and its transcript.", "read", ["input"]),
@@ -310,7 +311,7 @@ const CORE_TOOL_SPECS = [
     (input) => [input.path],
   ),
   coreTool("pi_project_clear", "Clear the active project workspace.", objectSchema({}), "project/clear", () => []),
-  coreTool("pi_session_list", "List durable sessions.", objectSchema({}), "session/list", () => []),
+  coreTool("pi_session_list", "List sessions in bounded pages; archived chats require includeArchived=true.", objectSchema({ includeArchived: { type: "boolean" }, offset: { type: "integer" }, limit: { type: "integer" }, search: { type: "string" } }), "session/list", input => [input]),
   coreTool(
     "pi_session_create",
     "Create a durable session, optionally bound to a project and model.",
@@ -780,6 +781,7 @@ export function mcpControlRendererEvent(
  * surface from silently drifting away from the reviewed MCP operation set.
  */
 export function createMcpControlController(options: {
+  readSidebarPreferences?: () => unknown;
   channels: Readonly<Record<string, string>>;
   invoke: IpcInvoke;
   invokeSessionCollaboration?: (input: McpControlInvokeInput) => Promise<unknown>;
@@ -822,12 +824,13 @@ export function createMcpControlController(options: {
         validateGeneralSettingsPatch(args[0]);
       }
       const sanitized = args.map((value) => stripSecretMaterial(value)) as unknown[];
+      const listQuery = operation.id === "session/list" && input.source !== "plugin" ? sessionListQuery(sanitized) : undefined;
       if (operation.id === "agent/prompt") markAutomationRequest(sanitized[0]);
       const result = operation.channel === "internal:session-collaboration"
         ? await options.invokeSessionCollaboration!({ ...input, args: sanitized })
-        : await options.invoke(operation.channel, sanitized);
+        : await options.invoke(operation.channel, listQuery ? [] : sanitized);
       await options.onOperationComplete?.(operation, result, sanitized, input.source);
-      return result;
+      return listQuery ? sessionListPage(result, listQuery, options.readSidebarPreferences?.()) : result;
     },
   };
 }

@@ -20,6 +20,7 @@ export type ProjectSort = "recent" | "created" | "oldest" | "name" | "manual";
 export type SessionMeta = {
   pinned?: boolean;
   archived?: boolean;
+  restoredAt?: number;
   order?: number;
   /** Survives renderer restarts so automatic titles never replace a manual one. */
   manualTitle?: boolean;
@@ -43,6 +44,7 @@ export type SidebarPreferences = {
 
 export const SIDEBAR_PREFERENCES_KEY = "pi.desktop.sidebarPreferences";
 let mirrorSidebar: ((value: SidebarPreferences) => Promise<void>) | undefined;
+export function sidebarPersistenceReady(): boolean { return mirrorSidebar !== undefined; }
 let sidebarRevision = 0;
 let latestSidebar: SidebarPreferences | undefined;
 export const SIDEBAR_WIDTH_KEY = "pi.desktop.sidebarWidth";
@@ -116,6 +118,7 @@ function cleanSessionMeta(value: unknown): Record<string, SessionMeta> {
     const manualTitle = bool(raw.manualTitle);
     if (pinned !== undefined) item.pinned = pinned;
     if (archived !== undefined) item.archived = archived;
+    if (typeof raw.restoredAt === "number" && Number.isFinite(raw.restoredAt) && raw.restoredAt > 0) item.restoredAt = raw.restoredAt;
     if (order !== undefined) item.order = order;
     if (manualTitle !== undefined) item.manualTitle = manualTitle;
     if (Object.keys(item).length) output[id] = item;

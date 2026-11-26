@@ -5,6 +5,11 @@ description: Brief current Pi Desktop working chats, recent verified completions
 
 # Pi activity briefing
 
+The MCP list excludes archives and returns bounded pages. Follow `nextOffset`
+when more inventory is needed; check every returned `runningSessionIds` through
+native status even when its title is outside the current page. Do not enumerate
+archived history merely to give a current activity briefing.
+
 Use the Pi-Desktop MCP's actual operation descriptors. Read `session/list` for
 real `runningSessionIds`, `agent/pendingInteractive` for questions/permissions and
 the available notification/result records for completed work. Cross-check the
