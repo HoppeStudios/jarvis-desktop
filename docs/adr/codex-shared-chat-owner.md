@@ -1,6 +1,6 @@
 # ADR codex-shared-chat-owner: One native owner for linked chats
 
-- Status: Implemented candidate, installed acceptance pending
+- Status: Implemented candidate, Windows installed acceptance passed 2026-11-26
 - Date: 2026-11-25
 
 ## Context

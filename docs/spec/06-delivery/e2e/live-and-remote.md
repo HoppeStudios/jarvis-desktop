@@ -835,3 +835,18 @@ their separate platform acceptance.
   transport tests. No live model account, microphone or user conversations are
   used. Installed two-app/account acceptance after restart remains a distinct
   required deployment check. No GUI process is stopped by installation.
+
+
+### Installed shared-chat acceptance, 2026-11-26
+
+The staged archive was installed and its hash verified in the ordinary Windows
+Pi Desktop installation. The real Codex chat's current request, live replies
+and prior completed turn were readable through Pi. After that turn completed,
+the installed Pi MCP control plane submitted one labeled new turn into the same
+existing native Codex chat. The actual model continued that conversation; both
+native Codex and Pi returned identical user/assistant item IDs, turn identity
+and reply text. No extra chat was created, no transcript was rewritten and no
+unrelated task or call was interrupted. This verifies live account continuation
+through the installed control plane, separate from the earlier isolated UI
+composer tests. Advanced approval variants, attachment presentation and terminal
+Pi CLI remain outside the verified slice.
