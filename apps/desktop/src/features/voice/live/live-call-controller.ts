@@ -464,12 +464,15 @@ export class LiveCallController {
             resources.lastProviderTurnCompleteAt = Date.now();
             break;
           case "error": {
-            const wire = value as { type?: unknown; code?: unknown; error?: { code?: unknown; type?: unknown } };
+            const wire = value as { type?: unknown; code?: unknown; error?: { code?: unknown; type?: unknown; param?: unknown } };
             const providerCode = wire.error?.code ?? wire.code ?? wire.error?.type;
             const code = wire.type === "error" ? (typeof providerCode === "string" && /^[a-zA-Z_]{1,48}$/.test(providerCode)
               ? "LIVE_CODEX_" + providerCode.toUpperCase() : "LIVE_CODEX_PROVIDER_ERROR")
               : wire.type === "delegation.created" ? "LIVE_DELEGATION_INCOMPLETE" : event.code;
-            void this.failActive(callId, liveError(code));
+            const param = wire.error?.param;
+            const diagnostic = typeof param === "string" && /^[a-zA-Z0-9_.\[\]]{1,48}$/.test(param)
+              ? (code + "_" + param.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase()).slice(0,75) : code;
+            void this.failActive(callId, liveError(diagnostic));
             break;
           }
           default:
