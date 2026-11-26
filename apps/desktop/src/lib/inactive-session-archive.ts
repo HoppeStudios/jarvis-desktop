@@ -1,5 +1,5 @@
-/** The user-requested seven-day inactivity policy; never deletes session data. */
-export const CHAT_INACTIVITY_MS = 7 * 24 * 60 * 60 * 1000;
+/** The user-requested four-week inactivity policy; never deletes session data. */
+export const CHAT_INACTIVITY_MS = 28 * 24 * 60 * 60 * 1000;
 export function inactiveSessionIds(
   sessions: readonly { id: string; updatedAt: string }[],
   meta: Record<string, { archived?: boolean; restoredAt?: number }>,
