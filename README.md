@@ -1,5 +1,14 @@
 ## HoppeStudios Jarvis fork
 
+**[Donate to HoppeStudios](https://ko-fi.com/hoppestudios)** ·
+[Shared chat integration](https://github.com/HoppeStudios/codex-pi-chat-sync) ·
+[Installation](integrations/jarvis/README.md) ·
+[Fork releases](https://github.com/HoppeStudios/jarvis-desktop/releases)
+
+The opt-in shared chat candidate lets Pi continue Codex-owned chats through one
+native owner. [Architecture and limits](docs/adr/codex-shared-chat-owner.md).
+Optional donations do not affect downloads or upstream licensing.
+
 This fork contains the Pi Desktop Jarvis integration. Start with the
 [installation requirements and setup](integrations/jarvis/README.md),
 [wake listener](integrations/jarvis/wake/README.md),

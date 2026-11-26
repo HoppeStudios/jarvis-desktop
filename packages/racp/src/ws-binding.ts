@@ -139,6 +139,15 @@ export type WsClientOptions = {
 
 /** A `ws`-backed client transport for the header profile. */
 export function wsClientTransport(options: WsClientOptions): ClientTransportFactory {
+  return headerWebSocketTransport(options, [RACP_WS_SUBPROTOCOL]);
+}
+
+/** Authenticated JSON-RPC transport for a native Codex owner, without RACP framing. */
+export function nativeJsonRpcWebSocketTransport(options: WsClientOptions): ClientTransportFactory {
+  return headerWebSocketTransport(options, []);
+}
+
+function headerWebSocketTransport(options: WsClientOptions, protocols: string[]): ClientTransportFactory {
   return () =>
     new Promise<ClientTransport>((resolve, reject) => {
       const url = new URL(options.url);
@@ -150,7 +159,7 @@ export function wsClientTransport(options: WsClientOptions): ClientTransportFact
         reject(Object.assign(new Error("plain ws:// is accepted only on loopback"), { errorCode: "REMOTE_CONNECTION_FAILED" }));
         return;
       }
-      const socket = new WebSocket(url, [RACP_WS_SUBPROTOCOL], {
+      const socket = new WebSocket(url, protocols, {
         headers: { Authorization: `Bearer ${options.token}` },
         handshakeTimeout: options.connectTimeoutMs ?? 10_000,
       });

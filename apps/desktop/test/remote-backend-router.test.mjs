@@ -92,3 +92,15 @@ test("malformed remote identifiers cannot fall through to local handlers", async
     errorCode: "INVALID_ARGUMENT",
   });
 });
+
+test("only explicitly bound Pi identities may use an external owner", async () => {
+  const router = createBackendRouter();
+  const pi = "actual-pi-session";
+  const backend = { handles: channel => channel === "session.get", invoke: async () => ({ owner: "codex" }) };
+  router.registerBackend(pi, backend);
+  assert.deepEqual(await router.route("session.get", [{ id: pi }]), { remote: true, value: { owner: "codex" } });
+  assert.equal(await router.route("session.get", [{ id: "unbound-pi-session" }]), ROUTE_LOCAL);
+  await assert.rejects(router.route("settings.save", [{ sessionId: pi }]), { errorCode: "CAPABILITY_UNAVAILABLE" });
+  router.unregisterBackend(pi);
+  assert.equal(await router.route("session.get", [{ id: pi }]), ROUTE_LOCAL);
+});

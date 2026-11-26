@@ -16,8 +16,10 @@ import type { SessionWorktreeSummary } from "./worktree.js";
  * - `remote`: a session that lives on a paired remote `pi-host` and is driven
  *   over RACP-WS. The renderer treats it exactly like a `desktop` session apart
  *   from a display badge; the local/remote split is resolved in Electron main.
+ * - `codex`: the authenticated native Codex owner on this PC. Pi renders a
+ *   projection and retains validated local project grouping, without a Pi loop.
  */
-export type SessionSource = "desktop" | "pi-native" | "remote";
+export type SessionSource = "desktop" | "pi-native" | "remote" | "codex";
 
 export type SessionCapabilities = {
   canPrompt: boolean;

@@ -31,6 +31,7 @@ import { readSessionCollaboration } from "../services/session-collaboration";
 import { localNativeProjectPaths, searchSessionsAcrossSources } from "../services/session-search";
 import type { IpcRegistrar } from "./types";
 import { getActiveRemoteHostsBoot } from "../bootstrap/remote-hosts.js";
+import { getCodexChatBridge } from "../codex/codex-chat-bridge";
 import { jarvisSessionPolicy } from "../jarvis/execution-policy";
 
 type RuntimeSession = {
@@ -225,15 +226,18 @@ export function registerSessionIpc({
           .call<{ sessions: RuntimeSession[] }>("native.session.list", { projectPaths })
           .catch(() => ({ sessions: [] as RuntimeSession[] }))
       : { sessions: [] as RuntimeSession[] };
+    const codex = getCodexChatBridge();
+    for (const session of [...result.sessions, ...native.sessions]) codex?.registerPiSession(session as any);
     return {
       ...result,
-      runningSessionIds: [...activeTurns.keys()],
+      runningSessionIds: [...activeTurns.keys(), ...(codex?.runningSessionIds() ?? [])],
       sessions: [
-        ...result.sessions.map((session) => ({
+        ...result.sessions.filter(session => !codex?.ownsPiSession(session.id!)).map((session) => ({
           ...enrichSession(session, providers, defaults),
           source: "desktop",
         })),
-        ...native.sessions,
+        ...native.sessions.filter(session => !codex?.ownsPiSession(session.id!)),
+        ...(codex?.summaries() ?? []),
         ...(getActiveRemoteHostsBoot()?.sessionSummaries() ?? []),
       ].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))),
     };
@@ -254,7 +258,10 @@ export function registerSessionIpc({
     );
     logger.app("session", "info", "session created", { sessionId: res.session?.id });
     if (!res.session) return res;
-    return { ...res, session: enrichSession(res.session, providers, defaults) };
+    const session = enrichSession(res.session, providers, defaults);
+    const codex = getCodexChatBridge();
+    codex?.registerPiSession(session);
+    return { ...res, session: codex?.summaries().find(value => value.id === session.id) ?? session };
   });
   handle(
     IPC.invoke.sessionFork,

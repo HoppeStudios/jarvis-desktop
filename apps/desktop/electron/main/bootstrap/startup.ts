@@ -28,6 +28,7 @@ import { readCloseBehavior } from "../window-preferences";
 import { createAgentHostBridge, type AgentHostBridge } from "../agent-host-bridge";
 import { createBackendRouter, type BackendRouter } from "../remote/backend-router";
 import { createRemoteHostsBoot, setActiveRemoteHostsBoot } from "./remote-hosts";
+import { CodexChatBridge, setCodexChatBridge } from "../codex/codex-chat-bridge";
 import {
   createMcpControlController,
   McpControlServer,
@@ -38,6 +39,7 @@ import {
 import type { ModelsDevCatalog } from "../models-dev-catalog";
 import type { AppUpdaterController } from "../updater";
 import type { HostProcess } from "../host-process";
+import type { AgentSidecar } from "../agent-sidecar";
 import type { Logger } from "../logger";
 import type { PluginRuntime } from "../plugin-runtime";
 import { runSessionListProbe } from "../session-list-probe";
@@ -126,7 +128,7 @@ export type StartupDependencies = {
   ensureWindow: () => Promise<boolean>;
   bootHostStatus: (bootError: unknown) => unknown;
   flushPendingApplicationMenuCommands: () => void;
-  getSidecar?: () => unknown;
+  getSidecar?: () => AgentSidecar | null;
   invokeSessionCollaboration?: (input: McpControlInvokeInput) => Promise<unknown>;
   onSessionQueueChange?: () => void;
   onInputResolved?: (request: AskToolRequest,resolution: AskToolResolution) => void;
@@ -252,6 +254,38 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       log: (level, message, data) =>
         logger.app("runtime", level, message, { data: formatRemoteLogData(data) }),
     });
+    const codexChats = new CodexChatBridge({
+      router: state.backendRouter,
+      emit: sendToRenderer,
+      isPiSessionBusy: isSessionBusy,
+      readPiSession: async (id) => {
+        const host = getHost();
+        const sidecar = deps.getSidecar?.();
+        if (!host) return null;
+        const read = (before?: number) => id.startsWith("native-pi:")
+          ? sidecar?.call<any>("native.session.get", { id, messageLimit: 200, ...(before !== undefined ? { messageBefore: before } : {}) })
+          : host.call<any>("session.get", { id, messageLimit: 200, ...(before !== undefined ? { messageBefore: before } : {}) });
+        const result = await read();
+        if (!result?.session) return null;
+        const session = result.session;
+        if (session.id !== id) throw new Error("Pi history identity mismatch");
+        let messages = session.messages ?? [];
+        let page = session;
+        const seen = new Set<number>();
+        while (page.hasMoreBefore) {
+          if (!Number.isInteger(page.messageStart) || seen.has(page.messageStart)) throw new Error("Pi history cursor did not advance");
+          seen.add(page.messageStart);
+          const older = await read(page.messageStart);
+          if (!older?.session || older.session.id !== id) throw new Error("Pi history page identity mismatch");
+          page = older.session;
+          messages = [...page.messages, ...messages];
+        }
+        return { session: { ...session, messages, hasMoreBefore: false } };
+      },
+    });
+    setCodexChatBridge(codexChats);
+    void codexChats.start();
+    onConfirmedQuit(() => { codexChats.close(); setCodexChatBridge(null); });
     // Every paired remote `pi-host` opens against the router this boot just
     // created. An empty registry (default install with no user pairing) makes
     // this a full no-op — nothing connects, no backend registers, every

@@ -811,3 +811,42 @@ their separate platform acceptance.
 - Automation: `node scripts/e2e-composer-draft-status.mjs` plus desktop
   `composer-draft-status.test.mjs`. This verifies real Main/renderer/MCP delivery
   with fixture drafts, not a shutdown lease or installed-client acceptance.
+
+
+## E2E-CODEX-shared-chat
+
+- Start the exact pinned native executable in a private fixture home with a
+  fake local Responses model. Connect Desktop proxies and the real Pi Main
+  adapter. Send from both clients, observe streaming and compare native history.
+- Import full synthetic Pi history through the actual owner, retain its real Pi
+  ID, continue it, reconnect and verify one binding with no duplicated messages.
+  Verified original-Codex provenance reconnects its original ID. A divergent
+  branch retains both histories and gains a visible Pi continuation suffix.
+- Launch the built Pi app or the staged packaged archive with isolated profile,
+  background startup, private MCP and a loopback renderer test connection.
+  Select an existing native Codex chat and continue through the actual composer.
+  Verify exactly two user/assistant pairs in the same native thread.
+- Check unregistered local IDs remain local and unsupported bound actions fail
+  closed. Check the private Desktop-tool relay authenticates and deduplicates
+  without changing native parameters or receipts. Check a changed installation
+  is preserved by the installer.
+- Automation: `scripts/e2e-codex-chat-bridge.mjs` and
+  `scripts/e2e-codex-chat-app.mjs`, orchestrated by the sync repository's native
+  transport tests. No live model account, microphone or user conversations are
+  used. Installed two-app/account acceptance after restart remains a distinct
+  required deployment check. No GUI process is stopped by installation.
+
+
+### Installed shared-chat acceptance, 2026-11-26
+
+The staged archive was installed and its hash verified in the ordinary Windows
+Pi Desktop installation. The real Codex chat's current request, live replies
+and prior completed turn were readable through Pi. After that turn completed,
+the installed Pi MCP control plane submitted one labeled new turn into the same
+existing native Codex chat. The actual model continued that conversation; both
+native Codex and Pi returned identical user/assistant item IDs, turn identity
+and reply text. No extra chat was created, no transcript was rewritten and no
+unrelated task or call was interrupted. This verifies live account continuation
+through the installed control plane, separate from the earlier isolated UI
+composer tests. Advanced approval variants, attachment presentation and terminal
+Pi CLI remain outside the verified slice.
