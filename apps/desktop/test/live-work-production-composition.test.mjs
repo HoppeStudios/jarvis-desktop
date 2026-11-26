@@ -12,12 +12,13 @@ test("production Live WorkBridge reaches AgentHost admission, explicit queue, an
   const server = await createServer({
     root: fileURLToPath(new URL("..", import.meta.url)),
     configFile: false,
+    resolve: { alias: { "@pi-desktop/host-runtime": fileURLToPath(new URL("../../../packages/host-runtime/src/index.ts", import.meta.url)) } },
     server: { middlewareMode: true, hmr: false, ws: false },
     appType: "custom",
     optimizeDeps: { noDiscovery: true, include: [] },
   });
   t.after(() => server.close());
-  const fixture = await createProductionWorkHarness(t, server);
+  const fixture = await createProductionWorkHarness(t, server, { progressBeforeFinal: true });
   const { bridge, agentHostBridge, prompts, persistedMessages, updates, invocationLog } = fixture;
   fixture.openCall(callId);
 
@@ -67,7 +68,8 @@ test("production Live WorkBridge reaches AgentHost admission, explicit queue, an
   assert.equal(terminal.execution, "completed");
   assert.equal(terminal.resultState, "available");
   assert.equal(terminal.resultSummary, WORK_RESULT);
-  assert.ok(fixture.historyReadsAfterTerminal >= 2, "an empty first history read is retried before falling back");
+  assert.ok(fixture.historyReadsAfterTerminal >= 2, "progress-only history is retried until the final answer persists");
+  assert.equal(updates.some((update) => update.operation.resultSummary === "I will inspect the login flow."), false);
   assert.equal(prompts[1].voiceOrigin.callId, callId);
   assert.equal(agentHostBridge.agentHost.queueEntries(WORK_SESSION_ID).length, 0);
   const resultWire = codexWorkFeedbackMessage("codex-production-request-1", {

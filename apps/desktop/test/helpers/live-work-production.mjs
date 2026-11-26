@@ -30,11 +30,19 @@ export async function createProductionWorkHarness(t, server, options = {}) {
     id: "assistant-final-1", turnId: "runtime-turn-1", role: "assistant",
     content: WORK_RESULT, status: "complete", createdAt: "2026-09-29T00:00:05.000Z",
   };
+  const progressText = "I will inspect the login flow.";
+  const progressMessage = {
+    id: "assistant-progress-1", turnId: "runtime-turn-1", role: "assistant",
+    content: progressText, status: "complete", createdAt: "2026-09-29T00:00:04.000Z",
+    providerReplay: { version: 1, blocks: [{ type: "text", length: progressText.length,
+      signature: JSON.stringify({ v: 1, id: "msg-progress", phase: "commentary" }) }] },
+  };
   const sessionRecord = () => ({
     id: WORK_SESSION_ID, title: "Production fixture", projectId, projectPath,
     mode: "agent", permissionMode: "ask",
     createdAt: "2026-09-29T00:00:00.000Z", updatedAt: "2026-09-29T00:00:00.000Z",
-    messages: terminalSeen && historyReadsAfterTerminal >= 2 ? [finalMessage] : [],
+    messages: terminalSeen && historyReadsAfterTerminal >= 2 ? [finalMessage] :
+      terminalSeen && options.progressBeforeFinal ? [progressMessage] : [],
   });
   const host = {
     async call(method, params) {
@@ -44,6 +52,7 @@ export async function createProductionWorkHarness(t, server, options = {}) {
         return { session: sessionRecord() };
       }
       if (method === "settings.get") return {};
+      if (method === "projects.list") return { projects: [] };
       if (method === "session.beginTurn") return { turnId: `durable-turn-${++durableTurnSequence}` };
       if (method === "session.appendMessage") { persistedMessages.push(params.message); return {}; }
       if (method === "session.queueList") return { entries: [] };
