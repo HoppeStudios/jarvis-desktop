@@ -30,6 +30,24 @@ test("empty, unavailable and oversized snapshots are explicit and do not invent 
  assert.equal(queueStartupContext({items:[item("broken")],total:-1}),QUEUE_CONTEXT_UNAVAILABLE);
 });
 
+test("startup finds a question beyond the first hundred reports and preserves a later saved cursor", async()=>{
+ const reports=Array.from({length:218},(_,i)=>({...item(`report-${i}`),kind:"turn_finished"}));
+ const pages=[...reports,item("late-question")];const offsets=[];
+ const read=async(_signal,offset)=>{offsets.push(offset);return {items:pages.slice(offset,offset+100),total:pages.length,nextOffset:offset+100<pages.length?offset+100:null};};
+ const options={enabled:true,signal:new AbortController().signal,read,cancel:()=>{}};
+ const result=await loadJarvisQueueContext(options);
+ assert.deepEqual(offsets,[0,100,200]);
+ assert.match(result,/"id":"late-question"/);assert.match(result,/"morePages":false/);
+ const saved=await loadJarvisQueueContext({...options,read:async(s,o)=>({...await read(s,o),cursor:{itemId:"report-217",questionId:"q0"}})});
+ assert.match(saved,/"id":"report-217"/);
+});
+
+test("invalid pagination fails honestly rather than presenting a partial queue",async()=>{
+ const result=await loadJarvisQueueContext({enabled:true,signal:new AbortController().signal,
+ read:async()=>({items:[item("first")],total:200,nextOffset:0}),cancel:()=>{}});
+ assert.equal(result,QUEUE_CONTEXT_UNAVAILABLE);
+});
+
 test("disabled startup makes no read; timeout aborts only its own read without changing queue state",async()=>{
  let reads=0,cancels=0,signal;
  assert.equal(await loadJarvisQueueContext({enabled:false,signal:new AbortController().signal,read:async()=>{reads++;},cancel:()=>{cancels++;}}),undefined);

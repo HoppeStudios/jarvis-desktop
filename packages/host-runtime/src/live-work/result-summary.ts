@@ -1,4 +1,4 @@
-import type { RacpItemSummary } from "@pi-desktop/shared";
+import { responsesAnswerText, type AssistantProviderReplay, type RacpItemSummary } from "@pi-desktop/shared";
 
 const MAX_SUMMARY_LENGTH = 480;
 
@@ -14,7 +14,7 @@ export function findTurnResult(
     .filter((item) => !item.parentToolCallId && !item.agentName)
     .map((item) => ({ item, message: asMessage(item.content) }))
     .filter((entry): entry is { item: RacpItemSummary; message: { role: "assistant"; content: string } } =>
-      entry.message?.role === "assistant" && typeof entry.message.content === "string",
+      entry.message?.role === "assistant" && typeof entry.message.content === "string" && entry.message.content.trim().length > 0,
     )
     .sort((left, right) => left.item.createdAt.localeCompare(right.item.createdAt) || (left.item.sequence ?? 0) - (right.item.sequence ?? 0));
 
@@ -42,8 +42,12 @@ export function projectTurnResultSummary(
 
 function asMessage(value: unknown): { role: string; content: unknown } | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const message = value as { role?: unknown; content?: unknown };
-  return typeof message.role === "string" ? { role: message.role, content: message.content } : null;
+  const message = value as { role?: unknown; content?: unknown; providerReplay?: AssistantProviderReplay };
+  return typeof message.role === "string" ? {
+    role: message.role,
+    content: message.role === "assistant" && typeof message.content === "string"
+      ? responsesAnswerText(message.content, message.providerReplay) : message.content,
+  } : null;
 }
 
 function summarizeText(value: string): string {

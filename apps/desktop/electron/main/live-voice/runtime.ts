@@ -114,18 +114,21 @@ export function createLiveCallService(input: {
     log: input.log,
     loadWorkStartupContext: async ({ callId, signal }) => {
       const scope = `jarvis-live-startup:${callId}`;
+      let queueToolName: string | undefined;
       return loadJarvisQueueContext({
         enabled: latestSettings?.jarvisEnabled === true && latestSettings?.jarvisQueueEnabled === true,
         signal,
         cancel: () => input.userMcp?.cancelSessionCalls(scope),
-        read: async (readSignal) => {
+        read: async (readSignal, offset) => {
           if (!input.userMcp || !input.refreshUserMcp) throw new Error("Queue MCP runtime unavailable");
-          await input.refreshUserMcp(null);
-          const tools = await input.userMcp.toolsForProject(null, "Jarvis-Inbox");
+          if (!queueToolName) {
+            await input.refreshUserMcp(null);
+            const tools = await input.userMcp.toolsForProject(null, "Jarvis-Inbox");
+            queueToolName = tools.find((entry) => entry.serverId === "Jarvis-Inbox" && entry.toolName === "review_queue")?.fullName;
+          }
           if (readSignal.aborted) throw new Error("Live startup cancelled");
-          const tool = tools.find((entry) => entry.serverId === "Jarvis-Inbox" && entry.toolName === "review_queue");
-          if (!tool) throw new Error("Queue read tool unavailable");
-          return input.userMcp.callTool(tool.fullName, { limit: 100 }, null, scope);
+          if (!queueToolName) throw new Error("Queue read tool unavailable");
+          return input.userMcp.callTool(queueToolName, { limit: 100, offset }, null, scope);
         },
       });
     },

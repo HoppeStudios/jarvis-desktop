@@ -238,3 +238,16 @@ compatible model, account and endpoint. Real-account calls, microphone
 permission prompts and hardware playback must be reported separately from
 automated fixture results; they may incur provider usage and require explicit
 user authorization.
+
+### Queue startup and final results
+
+Jarvis startup reads all queue pages under one bounded deadline, preserves a saved
+briefing cursor and otherwise prioritizes unanswered questions over informational
+reports. A partial or invalid page sequence is unavailable rather than empty.
+Only one selected item enters realtime context. The shared Inbox remains unchanged.
+
+Work result projection excludes explicitly signed Responses commentary, allowing
+the existing bounded history retry to wait for the actual answer. Unsigned provider
+text remains compatible. Wake status records the last grammar recognition and the
+command source (speech, tray or control) for diagnosing unexpected call endings;
+it does not record general microphone audio or unrestricted dictation.
