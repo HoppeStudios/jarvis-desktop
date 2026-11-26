@@ -38,11 +38,13 @@ delete env.PI_DESKTOP_PI_IMPORT_DIR;
 const seed = new Host(resolveHostBinary(), dataDir, { env, quiet: true });
 await seed.start();
 const old = (await seed.call("session.create", { title: "Inactive archive fixture", mode: "agent" })).session;
+const middle = (await seed.call("session.create", { title: "Three-week archive fixture", mode: "agent" })).session;
 const fresh = (await seed.call("session.create", { title: "Recent archive fixture", mode: "agent" })).session;
 await seed.stop();
 const db = new DatabaseSync(join(dataDir, "pi.sqlite"));
 const stamp = db.prepare("SELECT updated_at FROM sessions WHERE id=?").get(old.id).updated_at;
-db.prepare("UPDATE sessions SET updated_at=? WHERE id=?").run(stamp - 8 * 24 * 60 * 60 * (stamp > 1e12 ? 1000 : 1), old.id);
+db.prepare("UPDATE sessions SET updated_at=? WHERE id=?").run(stamp - 29 * 24 * 60 * 60 * (stamp > 1e12 ? 1000 : 1), old.id);
+db.prepare("UPDATE sessions SET updated_at=? WHERE id=?").run(stamp - 21 * 24 * 60 * 60 * (stamp > 1e12 ? 1000 : 1), middle.id);
 db.close();
 const child = spawn(electronBinary, [`--user-data-dir=${join(temp, "profile")}`,
   `--remote-debugging-port=${cdpPort}`, "--remote-debugging-address=127.0.0.1", "."],
@@ -74,6 +76,7 @@ try {
   }
   assert(!active.sessions.some(s => s.id === old.id), "old session is absent from default MCP results");
   assert(active.sessions.some(s => s.id === fresh.id), "recent session remains active");
+  assert(active.sessions.some(s => s.id === middle.id), "three-week-old session remains active");
   const archived = await control.tool("pi_session_list", { includeArchived: true, search: "Inactive archive fixture" });
   assert.equal(archived.sessions.find(s => s.id === old.id)?.archived, true);
   const detail = await control.tool("pi_session_get", { id: old.id, messageLimit: 10 });
@@ -83,7 +86,7 @@ try {
   await renderer.run(id => window.__PI_DESKTOP__.selectSession(id), old.id);
   const afterOpen = await control.tool("pi_session_get", { id: old.id, messageLimit: 10 });
   assert.equal(afterOpen.session.id, old.id, "archived session can still open");
-  console.log("PASS native inactivity archive: seven-day sweep, recent retention, default MCP exclusion, explicit archive search, durable native archive flag and history access");
+  console.log("PASS native inactivity archive: four-week sweep, recent retention, default MCP exclusion, explicit archive search, durable native archive flag and history access");
 } catch (error) {
   throw new Error(`${phase}: ${error.message}\nIsolated app diagnostics: ${stderr}`, { cause: error });
 } finally {
