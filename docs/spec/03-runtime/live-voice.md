@@ -251,3 +251,7 @@ the existing bounded history retry to wait for the actual answer. Unsigned provi
 text remains compatible. Wake status records the last grammar recognition and the
 command source (speech, tray or control) for diagnosing unexpected call endings;
 it does not record general microphone audio or unrestricted dictation.
+
+### Linked-chat answer delivery
+
+The reviewed MCP agent/steer operation reuses the existing IPC handler. Linked Codex input must identify the exact current turn, and native turn/steer enforces that identity atomically. Actual asynchronous question replies may be delivered as ordinary text to that source; this is message delivery, not native form submission. Queue answer recording requires a successful receipt and source readback.

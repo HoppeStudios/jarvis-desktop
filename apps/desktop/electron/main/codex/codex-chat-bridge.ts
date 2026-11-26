@@ -533,10 +533,11 @@ export class CodexChatBridge implements RemoteBackend {
     }
     if (channel === IPC.invoke.agentSteer) {
       const turnId = this.running.get(threadId);
-      if (!turnId) throw unavailable("This chat has no running turn to steer");
+      if (!turnId || input.expectedTurnId !== turnId) throw unavailable("The exact target turn is no longer running");
+      if (typeof input.content !== "string" || !input.content.trim()) throw unsupported();
       await this.request("turn/steer", { threadId, expectedTurnId: turnId,
         input: [{ type: "text", text: input.content }] });
-      return { accepted: true };
+      return { accepted: true, turnId };
     }
     if (channel === IPC.invoke.pendingInteractive) {
       const requests = [...this.pending.values()].filter(value => value.params.threadId === threadId);
