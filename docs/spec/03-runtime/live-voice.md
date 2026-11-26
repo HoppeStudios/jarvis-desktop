@@ -1,5 +1,20 @@
 # Live Voice v1
 
+## Work classifier startup
+
+Live work intent classification resolves only the selected account/model binding
+and request authentication. It uses the same binding resolver as coding turns,
+with low reasoning requested and normal capability clamping. It must not open a
+shell, connect MCP servers, enumerate skills/subagents, load workspace instructions
+or modify a bound session's workspace/auth registrations. Coding-turn startup
+still performs those operations after normal admission.
+
+Provider setup shares the coordinator's bounded classification deadline rather
+than an independent two-second agent-startup deadline. Classifier diagnostics
+record only a stage and a bounded error code; prompts, generated text, credentials
+and provider headers do not enter those diagnostics. Invalid/ambiguous requests
+retain the existing fail-closed admission behavior.
+
 ## Scope
 
 Live Voice is an optional, app-owned real-time audio path. It is separate

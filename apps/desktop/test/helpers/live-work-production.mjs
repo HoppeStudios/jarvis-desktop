@@ -104,18 +104,19 @@ export async function createProductionWorkHarness(t, server, options = {}) {
     getHost: () => host, getAgentHostBridge: () => agentHostBridge,
     vendorOAuth: { async resolveAuth() { throw new Error("OAuth is not used by this fixture"); } },
     async navigateSession() {},
-    async resolveAgentRuntimeLaunch(_id, session) {
+    async resolveCompletionProvider(session) {
       assert.equal("projectPath" in session, false, "private paths must not enter classifier setup");
       assert.equal("workspaceIdentity" in session, false, "private fingerprints must not enter classifier setup");
-      return { providerId: "fixture-provider", sidecarParams: { provider: {
+      return { providerId: "fixture-provider", provider: {
         id: "fixture-provider", name: "Fixture Provider", vendorKey: "openai",
         apiStyle: "chat_completions", baseUrl: "https://fixture.invalid/v1",
         modelId: "fixture-model", apiKey: "fixture-key", authKind: "api_key",
         supportsReasoning: false, supportedThinkingLevels: ["off"],
-      } } };
+      } };
     },
     async completeIntent(_provider, context, _thinking, requestOptions) {
       assert.ok(requestOptions.signal instanceof AbortSignal);
+      assert.equal(_thinking, "low");
       return { text: JSON.stringify({
         kind: "new-task",
         relationToActive: String(context.messages[0]?.content).includes("independent follow-up") ? "independent" : "unspecified",

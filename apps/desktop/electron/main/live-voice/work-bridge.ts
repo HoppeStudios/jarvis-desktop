@@ -46,9 +46,7 @@ import { subscribeLiveSessionEvents, type LiveSessionWorkEvent } from "./live-se
 
 type LaunchResult = {
   providerId: string;
-  sidecarParams: {
-    provider: RuntimeProviderConfig;
-  };
+  provider: RuntimeProviderConfig;
 };
 
 type WorkSessionSummary = LiveWorkSessionRecord & {
@@ -119,13 +117,13 @@ export function createLiveWorkBridge(input: {
   getRemoteHosts?: () => RemoteHostsBoot | null;
   vendorOAuth: Pick<VendorOAuth, "resolveAuth">;
   navigateSession: (callId: string, sessionId: string) => Promise<void>;
-  resolveAgentRuntimeLaunch: (
-    sessionId: string,
+  resolveCompletionProvider: (
     session: Record<string, unknown>,
     settings: unknown,
     overrides: { providerId?: string; modelId?: string; thinkingLevel?: ThinkingLevel },
   ) => Promise<LaunchResult>;
   completeIntent?: typeof completeOneShot;
+  onClassifierFailure?: (failure: { stage: string; code: string }) => void;
   onOperation: (callId: string, update: LiveWorkOperationUpdate) => void;
   getWorkContextConsent?: (callId: string) => boolean;
   onTargetSelected?: (callId: string, binding: LiveWorkBinding) => void;
@@ -432,116 +430,126 @@ export function createLiveWorkBridge(input: {
     workPort,
     ...(input.onAnnouncementPolicy ? { onAnnouncementPolicy: input.onAnnouncementPolicy } : {}),
     resolveIntent: async ({ candidate, snapshot, recentOperations, signal }) => {
-      const binding = bindings.get(candidate.callId);
-      if (!binding || binding.workSessionId !== candidate.workSessionId) return null;
-      signal.throwIfAborted();
-      const hasTarget = binding.workSessionId !== liveWorkUnselectedSessionId(candidate.callId);
-      const rpc = host();
-      const session: Partial<WorkSessionSummary> = hasTarget
-        ? await raceWithSignal(requireSupportedSession(binding.workSessionId, candidate.callId), signal, 2_000)
-        : {};
-      signal.throwIfAborted();
-      const settings = await raceWithSignal(rpc.call<Record<string, unknown>>("settings.get"), signal, 2_000);
-      signal.throwIfAborted();
-      let recentMessages: LiveWorkContextMessage[] = [];
-      if (hasTarget && binding.contextEnabled) {
-        if (session.source === "desktop") {
-          const detail = await raceWithSignal(
-            rpc.call<{ session?: { messages?: LiveWorkContextMessage[] } }>("session.get", {
-              id: binding.workSessionId,
-              messageLimit: 6,
-            }),
-            signal,
-            2_000,
-          );
-          recentMessages = detail.session?.messages ?? [];
-        } else if (session.source === "pi-native") {
-          const sidecar = input.getSidecar?.();
-          if (!sidecar) throw Object.assign(new Error("Native Pi runtime is unavailable"), { errorCode: "LIVE_WORK_NOT_READY" });
-          const detail = await raceWithSignal(
-            sidecar.call<{ session?: { messages?: LiveWorkContextMessage[] } }>("native.session.get", {
-              id: binding.workSessionId,
-              messageLimit: 6,
-            }),
-            signal,
-            2_000,
-          );
-          recentMessages = detail.session?.messages ?? [];
-        } else {
-          const remoteHosts = input.getRemoteHosts?.();
-          if (!remoteHosts) throw Object.assign(new Error("Remote Host is unavailable"), { errorCode: "LIVE_WORK_NOT_READY" });
-          const items = await raceWithSignal(remoteHosts.readHistory(binding.workSessionId, 24), signal, 2_000);
-          recentMessages = items.flatMap((item): LiveWorkContextMessage[] => {
-            const message = item.content && typeof item.content === "object" && !Array.isArray(item.content)
-              ? item.content as Record<string, unknown>
-              : {};
-            if ((message.role !== "user" && message.role !== "assistant") || typeof message.content !== "string") return [];
-            return [{
-              role: message.role,
-              content: message.content,
-              ...(typeof message.voiceOrigin === "object" && message.voiceOrigin !== null ? { voiceOrigin: message.voiceOrigin as LiveWorkContextMessage["voiceOrigin"] } : {}),
-              ...(typeof message.toolName === "string" ? { toolName: message.toolName } : {}),
-              ...(typeof message.parentToolCallId === "string" ? { parentToolCallId: message.parentToolCallId } : {}),
-              ...(Array.isArray(message.attachments) ? { attachments: message.attachments as LiveWorkContextMessage["attachments"] } : {}),
-            }];
-          });
-        }
-        signal.throwIfAborted();
-      }
-      // Read the open question at classification time: it is the only source
-      // for the option labels a spoken answer may select.
-      const pendingQuestion = readPendingQuestion(snapshot.sessionId);
-      const contextInput = buildLiveWorkClassifierInput({
-        candidate,
-        snapshot,
-        contextEnabled: binding.contextEnabled,
-        recentMessages,
-        recentOperations,
-        ...(pendingQuestion ? { pendingQuestion } : {}),
-      });
-      const classifierSessionId = hasTarget ? binding.workSessionId : `live-work-classifier:${candidate.callId}`;
-      const launch = await raceWithSignal(input.resolveAgentRuntimeLaunch(
-        classifierSessionId,
-        {
-          id: classifierSessionId,
-          title: typeof session.title === "string" ? session.title : "",
-          ...(typeof session.providerId === "string" ? { providerId: session.providerId } : {}),
-          ...(typeof session.modelId === "string" ? { modelId: session.modelId } : {}),
-          mode: session.mode ?? "agent",
-          thinkingLevel: session.thinkingLevel ?? "off",
-          permissionMode: session.permissionMode,
-          // Do not pass projectPath or transcript-derived fields to launch resolution.
-        },
-        settings,
-        {
-          ...(typeof session.providerId === "string" ? { providerId: session.providerId } : {}),
-          ...(typeof session.modelId === "string" ? { modelId: session.modelId } : {}),
-          thinkingLevel: "off",
-        },
-      ), signal, 2_000);
-      signal.throwIfAborted();
-      const provider = {
-        ...launch.sidecarParams.provider,
-        ...(launch.sidecarParams.provider.authKind === OAUTH_AUTH_KIND
-          ? { resolveAuth: () => input.vendorOAuth.resolveAuth(launch.providerId) }
-          : {}),
-      };
-      const context: Context = {
-        systemPrompt: INTENT_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: contextInput, timestamp: Date.now() }],
-      };
-      const result = await (input.completeIntent ?? completeOneShot)(provider, context, "off", {
-        sessionId: classifierSessionId,
-        signal,
-        maxOutputTokens: 1_024,
-      });
-      signal.throwIfAborted();
-      const output = result.text.trim();
-      if (new TextEncoder().encode(output).byteLength > 8 * 1024) return null;
+      let stage = "session";
       try {
-        return JSON.parse(output) as unknown;
-      } catch {
-        return null;
+        const binding = bindings.get(candidate.callId);
+        if (!binding || binding.workSessionId !== candidate.workSessionId) return null;
+        signal.throwIfAborted();
+        const hasTarget = binding.workSessionId !== liveWorkUnselectedSessionId(candidate.callId);
+        const rpc = host();
+        const session: Partial<WorkSessionSummary> = hasTarget
+          ? await raceWithSignal(requireSupportedSession(binding.workSessionId, candidate.callId), signal, 2_000)
+          : {};
+        signal.throwIfAborted();
+        const settings = await raceWithSignal(rpc.call<Record<string, unknown>>("settings.get"), signal, 2_000);
+        signal.throwIfAborted();
+        let recentMessages: LiveWorkContextMessage[] = [];
+        if (hasTarget && binding.contextEnabled) {
+          if (session.source === "desktop") {
+            const detail = await raceWithSignal(
+              rpc.call<{ session?: { messages?: LiveWorkContextMessage[] } }>("session.get", {
+                id: binding.workSessionId,
+                messageLimit: 6,
+              }),
+              signal,
+              2_000,
+            );
+            recentMessages = detail.session?.messages ?? [];
+          } else if (session.source === "pi-native") {
+            const sidecar = input.getSidecar?.();
+            if (!sidecar) throw Object.assign(new Error("Native Pi runtime is unavailable"), { errorCode: "LIVE_WORK_NOT_READY" });
+            const detail = await raceWithSignal(
+              sidecar.call<{ session?: { messages?: LiveWorkContextMessage[] } }>("native.session.get", {
+                id: binding.workSessionId,
+                messageLimit: 6,
+              }),
+              signal,
+              2_000,
+            );
+            recentMessages = detail.session?.messages ?? [];
+          } else {
+            const remoteHosts = input.getRemoteHosts?.();
+            if (!remoteHosts) throw Object.assign(new Error("Remote Host is unavailable"), { errorCode: "LIVE_WORK_NOT_READY" });
+            const items = await raceWithSignal(remoteHosts.readHistory(binding.workSessionId, 24), signal, 2_000);
+            recentMessages = items.flatMap((item): LiveWorkContextMessage[] => {
+              const message = item.content && typeof item.content === "object" && !Array.isArray(item.content)
+                ? item.content as Record<string, unknown>
+                : {};
+              if ((message.role !== "user" && message.role !== "assistant") || typeof message.content !== "string") return [];
+              return [{
+                role: message.role,
+                content: message.content,
+                ...(typeof message.voiceOrigin === "object" && message.voiceOrigin !== null ? { voiceOrigin: message.voiceOrigin as LiveWorkContextMessage["voiceOrigin"] } : {}),
+                ...(typeof message.toolName === "string" ? { toolName: message.toolName } : {}),
+                ...(typeof message.parentToolCallId === "string" ? { parentToolCallId: message.parentToolCallId } : {}),
+                ...(Array.isArray(message.attachments) ? { attachments: message.attachments as LiveWorkContextMessage["attachments"] } : {}),
+              }];
+            });
+          }
+          signal.throwIfAborted();
+        }
+        // Read the open question at classification time: it is the only source
+        // for the option labels a spoken answer may select.
+        const pendingQuestion = readPendingQuestion(snapshot.sessionId);
+        const contextInput = buildLiveWorkClassifierInput({
+          candidate,
+          snapshot,
+          contextEnabled: binding.contextEnabled,
+          recentMessages,
+          recentOperations,
+          ...(pendingQuestion ? { pendingQuestion } : {}),
+        });
+        const classifierSessionId = hasTarget ? binding.workSessionId : `live-work-classifier:${candidate.callId}`;
+        stage = "provider";
+        const launch = await raceWithSignal(input.resolveCompletionProvider(
+          {
+            id: classifierSessionId,
+            title: typeof session.title === "string" ? session.title : "",
+            ...(typeof session.providerId === "string" ? { providerId: session.providerId } : {}),
+            ...(typeof session.modelId === "string" ? { modelId: session.modelId } : {}),
+            mode: session.mode ?? "agent",
+            thinkingLevel: session.thinkingLevel ?? "low",
+            permissionMode: session.permissionMode,
+            // Do not pass projectPath or transcript-derived fields to launch resolution.
+          },
+          settings,
+          {
+            ...(typeof session.providerId === "string" ? { providerId: session.providerId } : {}),
+            ...(typeof session.modelId === "string" ? { modelId: session.modelId } : {}),
+            thinkingLevel: "low",
+          },
+        ), signal);
+        signal.throwIfAborted();
+        const provider = {
+          ...launch.provider,
+          ...(launch.provider.authKind === OAUTH_AUTH_KIND
+            ? { resolveAuth: () => input.vendorOAuth.resolveAuth(launch.providerId) }
+            : {}),
+        };
+        const context: Context = {
+          systemPrompt: INTENT_SYSTEM_PROMPT,
+          messages: [{ role: "user", content: contextInput, timestamp: Date.now() }],
+        };
+        stage = "completion";
+        const result = await (input.completeIntent ?? completeOneShot)(provider, context, "low", {
+          sessionId: classifierSessionId,
+          signal,
+          maxOutputTokens: 1_024,
+        });
+        signal.throwIfAborted();
+        const output = result.text.trim();
+        if (new TextEncoder().encode(output).byteLength > 8 * 1024) return null;
+        try {
+          return JSON.parse(output) as unknown;
+        } catch {
+          input.onClassifierFailure?.({ stage: "decode", code: "INVALID_JSON" });
+          return null;
+        }
+      } catch (error) {
+        const raw = (error as { errorCode?: unknown; code?: unknown })?.errorCode ?? (error as { code?: unknown })?.code;
+        const code = typeof raw === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(raw) ? raw : "CLASSIFIER_SETUP_FAILED";
+        input.onClassifierFailure?.({ stage, code });
+        throw error;
       }
     },
     onOperation: ({ operation, ...update }) => {
