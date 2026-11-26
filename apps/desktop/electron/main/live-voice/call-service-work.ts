@@ -40,6 +40,7 @@ export function createLiveCallWorkHandlers(deps: Dependencies) {
             workSessionId: slot.workBinding?.workSessionId ?? `live-work-unselected:${slot.callId}`,
             providerRequestId: id,
             instruction: request.instruction,
+            ...(slot.jarvisQueueContext?.delivery === "sent" && slot.jarvisQueueContext.replyContext ? {queueContext: slot.jarvisQueueContext.replyContext} : {}),
           },
           (receipt) => deliverReceipt(slot, id, receipt, deps),
         ).catch(() => undefined);

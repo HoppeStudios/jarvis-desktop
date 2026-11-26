@@ -16,8 +16,8 @@ test('real call service sends native queue continuation once after genuine prese
  s.reportMedia(owner,{callId:prepared.callId,kind:'phase',phase:'connected'});
  state.adapters[0].onEvent({kind:'transcript',role:'assistant',text:'Are you present, sir?',final:true,id:'greeting'});
  assert.equal(state.controls.filter(x=>x.kind==='session-context').length,0,'assistant greeting is not human presence');
- s.reportUserTurn(owner,{callId:prepared.callId,itemId:'actual-user-1'});
- s.reportUserTurn(owner,{callId:prepared.callId,itemId:'actual-user-1'});
+ state.adapters[0].onEvent({kind:'transcript',role:'user',text:'I am here',final:false,id:'actual-user-1'});
+ state.adapters[0].onEvent({kind:'transcript',role:'user',text:'I am here',final:true,id:'actual-user-1'});
  const events=state.controls.filter(x=>x.kind==='session-context');assert.equal(events.length,1);
  assert.match(events[0].content,/Which label/);assert.match(events[0].content,/not a human message or answer/);
  s.reportControlApplied(owner,{callId:prepared.callId,actionId:events[0].actionId,applied:true});

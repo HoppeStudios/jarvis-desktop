@@ -5,7 +5,7 @@ const object = (v: unknown): Record<string, any> | null => v !== null && typeof 
 const short = (v: unknown, max = 256): string | undefined => typeof v === "string" && v.length <= max ? v : undefined;
 
 /** Native continuation after genuine presence, separate from initial POST instructions. */
-export function jarvisQueueContinuation(context: string | undefined): { content: string; state: "ready" | "unavailable"; delivery: "pending" } | undefined {
+export function jarvisQueueContinuation(context: string | undefined): { content: string; state: "ready" | "unavailable"; delivery: "pending"; replyContext?: string } | undefined {
   if (!context) return undefined;
   let snapshot: Record<string, any> | null = null;
   try { snapshot = object(JSON.parse(context.slice(context.indexOf("\n") + 1))); } catch { /* Explicit unavailable context below. */ }
@@ -18,7 +18,7 @@ export function jarvisQueueContinuation(context: string | undefined): { content:
     ready ? context : "The queue snapshot is unavailable. Ask the connected work agent to fetch the real persistent queue with the installed skill; state the limitation if that fails. Do not invent items.",
   ].join("\n");
   if (Buffer.byteLength(content) > 48 * 1024) return undefined;
-  return { content, state: ready ? "ready" : "unavailable", delivery: "pending" };
+  return { content, state: ready ? "ready" : "unavailable", delivery: "pending", ...(ready ? {replyContext: JSON.stringify(snapshot!.item)} : {}) };
 }
 
 function queuePage(raw: unknown): Record<string, any> | null {

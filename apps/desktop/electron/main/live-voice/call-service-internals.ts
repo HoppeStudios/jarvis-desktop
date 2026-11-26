@@ -58,7 +58,7 @@ export type LiveCallServiceDeps = {
     | { kind: "project"; projectPath: string }
   >;
   receiveWorkCandidate?: (
-    candidate: { callId: string; workBindingRevision: number; workSessionId: string; providerRequestId: string; instruction: string },
+    candidate: { callId: string; workBindingRevision: number; workSessionId: string; providerRequestId: string; instruction: string; queueContext?: string },
     deliverReceipt: (receipt: LiveProviderReceipt) => Promise<LiveReceiptDelivery>,
   ) => Promise<void>;
   stopWorkOperation?: (input: { callId: string; operationId: string }) => Promise<LiveWorkStopOperationResult>;
@@ -98,7 +98,7 @@ export type Slot = {
   lastUserTurnAt?: number;
   userTurnCount?: number;
   userTurnIds?: Set<string>;
-  jarvisQueueContext?: { content: string; state: "ready" | "unavailable"; delivery: "pending" | "sent" | "not-sent" | "unknown" };
+  jarvisQueueContext?: { content: string; replyContext?: string; state: "ready" | "unavailable"; delivery: "pending" | "sent" | "not-sent" | "unknown" };
   jarvisQueueDispatched?: boolean;
   assistantSpeaking: boolean;
   assistantPlaybackActive: boolean;

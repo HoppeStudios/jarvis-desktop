@@ -446,7 +446,9 @@ export class LiveCallController {
             // utterance then receives its own presence/deduplication identity.
             const segment = (resources.transcripts ??= new CodexTranscriptAssembler()).push(event, Date.now());
             this.handleTranscript(callId, segment);
-            if (event.role === "user" && event.final && event.text.trim()) {
+            // Native final transcripts can be delayed until hangup. A real nonempty
+            // partial transcript establishes presence, never an item answer.
+            if (event.role === "user" && event.text.trim()) {
               void liveVoiceApi.reportUserTurn({ callId, itemId: segment.id }).catch((error) => this.failActive(callId, error));
             }
             break;

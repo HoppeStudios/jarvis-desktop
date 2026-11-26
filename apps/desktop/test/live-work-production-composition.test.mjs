@@ -79,3 +79,19 @@ test("production Live WorkBridge reaches AgentHost admission, explicit queue, an
   assert.match(JSON.parse(resultWire).content[0].text, /The login flow correctly rejects expired credentials/u);
   assert.equal(invocationLog.filter((item) => item.channel === IPC.invoke.agentPrompt).length, 2);
 });
+
+test('queue replies keep the real question identity in classifier context and the actual worker prompt',async(t)=>{
+ const server=await createServer({root:fileURLToPath(new URL('..',import.meta.url)),configFile:false,resolve:{alias:{'@pi-desktop/host-runtime':fileURLToPath(new URL('../../../packages/host-runtime/src/index.ts',import.meta.url))}},server:{middlewareMode:true,hmr:false,ws:false},appType:'custom',optimizeDeps:{noDiscovery:true,include:[]}});
+ t.after(()=>server.close());let classified;
+ const fixture=await createProductionWorkHarness(t,server,{onClassifierInput:context=>classified=context});
+ fixture.openCall('queue-call');
+ const item={id:'fixture-queue-item',revision:2,kind:'question',origin:{kind:'codex',threadId:'source-chat',hostId:'local'},question:{id:'0',text:'Which label?',options:['Orion','Vega']}};
+ await fixture.bridge.receiveCandidate({callId:'queue-call',workBindingRevision:3,workSessionId:WORK_SESSION_ID,providerRequestId:'actual-reply',instruction:'Orion',queueContext:JSON.stringify(item)},async()=>({status:'sent',deliveryId:'queue-receipt'}));
+ assert.deepEqual(JSON.parse(classified.messages[0].content).queuedItem,item);
+ assert.match(classified.systemPrompt,/Never use respond-input for an external queued item/);
+ assert.equal(fixture.prompts.length,1);
+ assert.match(fixture.prompts[0].content,/"Orion"/);
+ assert.match(fixture.prompts[0].content,/fixture-queue-item/);
+ assert.match(fixture.prompts[0].content,/source-chat/);
+ assert.match(fixture.prompts[0].content,/read the current revision/);
+});

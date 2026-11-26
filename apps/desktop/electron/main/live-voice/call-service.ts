@@ -626,7 +626,7 @@ export class LiveCallService {
         } catch (error) { void this.failAndCleanup(slot, error, "playback"); }
         return;
       case "transcript":
-        if (event.role === "user" && event.final && event.text.trim()) { noteUserTurn(slot, event.id, this.now()); this.dispatchQueueContext(slot); }
+        if (event.role === "user" && event.text.trim()) { noteUserTurn(slot, event.id, this.now()); this.dispatchQueueContext(slot); }
         pushLiveTranscript(slot, event, this.deps.sendTranscript, this.now);
         if (event.role === "user") this.publish(slot);
         return;

@@ -258,7 +258,8 @@ The reviewed MCP agent/steer operation reuses the existing IPC handler. Linked C
 
 ### Native queue continuation
 
-The first genuine deduplicated user turn in a Jarvis call sends the saved bounded
+The first genuine deduplicated nonempty user transcript (including a partial
+chunk, because native finals can be delayed until hangup) in a Jarvis call sends the saved bounded
 queue snapshot through a typed owner-bound session-context control and the native
 Codex session.context.append speakable channel. Initial POST instructions alone
 are not evidence of queue presentation. A local send receipt appears in call
@@ -271,3 +272,10 @@ an unlocked active PC, pending items, and the existing thirty-minute cooldown.
 Unrelated Windows/Discord microphone sessions do not prove a Jarvis call exists.
 They are never stopped or changed. The existing media permission and ownership
 guards remain.
+
+A delegation made while briefing a queue item carries its bounded Main-owned
+item context separately from the original spoken request. The classifier treats
+an actual reply as coordinator work, not as an unrelated word or a native ask in
+the coordinator itself. The same item identity accompanies the real worker prompt;
+the worker rereads current revisions and verifies source delivery before recording
+anything. Presence and ambiguous replies remain non-answers.
