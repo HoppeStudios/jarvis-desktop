@@ -4,7 +4,7 @@ export function sendJarvisSessionContext(input:{
  channel?:{readyState:string;send(value:string):void}; completed:Set<string>;
 }):boolean {
  if(input.callId!==input.currentCallId || input.adapterId!=='codex-live' || !input.actionId ||
-   !input.content || new TextEncoder().encode(input.content).byteLength>48*1024 || input.channel?.readyState!=='open')return false;
+   !input.content || new TextEncoder().encode(input.content).byteLength>1024 || input.channel?.readyState!=='open')return false;
  if(input.completed.has(input.actionId))return true;
  try {
   input.channel.send(JSON.stringify({type:'session.context.append',channel:'speakable',content:[{type:'input_text',text:input.content}]}));

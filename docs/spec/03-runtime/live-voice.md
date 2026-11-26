@@ -299,3 +299,6 @@ The intent classifier requests the session's existing Fast preference on a
 supported wire; low reasoning and admission checks remain. Diagnostics contain
 numeric provider/completion durations and the Fast-request flag, never user text.
 Call termination diagnostics contain only call identity and the bounded reason.
+
+
+Native queue speakable content is conservatively bounded to 1 KiB UTF-8. It contains the real question/choices or report without source identifiers; Main retains the complete bounded origin and revision for answer routing. An oversized item requests an exact worker fetch instead of silently truncating human options. This separates voice presentation from delivery metadata and avoids the observed native content rejection.

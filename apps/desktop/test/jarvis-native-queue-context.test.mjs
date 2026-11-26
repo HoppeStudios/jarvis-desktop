@@ -38,3 +38,15 @@ test('failed native context delivery stays diagnostic and does not end the call 
  let published=0;dispatchJarvisQueueContext(slot,{current:()=>slot,publish:()=>published++,send:()=>{throw new Error('closed channel');}});
  assert.equal(slot.jarvisQueueContext.delivery,'not-sent');assert.equal(slot.phase,'connected');assert.equal(slot.pendingControls.size,0);assert.equal(published,1);
 });
+
+
+test('native briefing is compact while the complete source identity stays in Main',async()=>{
+ const {jarvisQueueContinuation}=await import('../electron/main/jarvis/queue-context.ts');
+ const q={id:'item-long',revision:2,kind:'question',state:'pending',origin:{kind:'codex',threadId:'real-source',hostId:'local'},questions:[{id:'0',question:'Which label should the automatic invitation test use?',options:['Atlas','Lyra'],answered:false}]};
+ const context=jarvisQueueContinuation(queueStartupContext({items:[q],total:1,nextOffset:null}));
+ assert.ok(Buffer.byteLength(context.content)<=1024);assert.match(context.content,/Atlas/);assert.match(context.content,/Lyra/);
+ assert.equal(JSON.parse(context.replyContext).origin.threadId,'real-source');assert.doesNotMatch(context.content,/real-source/);
+ q.questions[0].question='Žádná volba nesmí být potichu zkrácena. '.repeat(100);
+ const long=jarvisQueueContinuation(queueStartupContext({items:[q],total:1,nextOffset:null}));
+ assert.ok(Buffer.byteLength(long.content)<=1024);assert.match(long.content,/fetch and brief/);assert.doesNotMatch(long.content,/Žádná/);
+});
