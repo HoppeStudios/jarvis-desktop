@@ -110,7 +110,7 @@ try {
   if($script:invitation -and -not (Test-JarvisInvitationCurrent $script:invitation $persistent.intentId $persistent.intentSequence $script:lastSpeech $script:paused)){$script:invitation=$null}
   foreach($e in @(Get-Event -SourceIdentifier 'JarvisPiRecognized' -ErrorAction SilentlyContinue)){
    try{
-    $r=$e.SourceEventArgs.Result;$action=Get-JarvisAction $r;$script:recognitionAudit=@{text=([string]$r.Text).Substring(0,[Math]::Min(256,([string]$r.Text).Length));confidence=[double]$r.Confidence;action=$action;at=[DateTime]::UtcNow.ToString("o")};$audio=$r.Audio;$key=if($audio){[string]$audio.StartTime.Ticks+':'+$audio.AudioPosition.Ticks+':'+$audio.Duration.Ticks}else{[string]$e.EventIdentifier}
+    $r=$e.SourceEventArgs.Result;$action=Get-JarvisAction $r -VoiceActive:([bool]($script:desired -or ($script:call -and $script:call.phase -notin @('ended','failed'))));$script:recognitionAudit=@{text=([string]$r.Text).Substring(0,[Math]::Min(256,([string]$r.Text).Length));confidence=[double]$r.Confidence;hypothesis=[string]$r.Semantics.Value;action=$action;at=[DateTime]::UtcNow.ToString("o")};$audio=$r.Audio;$key=if($audio){[string]$audio.StartTime.Ticks+':'+$audio.AudioPosition.Ticks+':'+$audio.Duration.Ticks}else{[string]$e.EventIdentifier}
     if(-not $script:paused -and $action -and $key -ne $lastRecognition){$lastRecognition=$key;$count=1;if($action -match '^toggle-([2-4])$'){$count=[int]$Matches[1];$action='toggle'};for($i=0;$i -lt $count;$i++){Invoke-CommandAction $action $null 'speech'};Status}
    }catch{Show-Error $_.Exception.Message}
    finally{Remove-Event -EventIdentifier $e.EventIdentifier -ErrorAction SilentlyContinue}

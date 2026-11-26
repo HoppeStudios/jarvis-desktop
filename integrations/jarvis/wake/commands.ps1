@@ -74,9 +74,16 @@ function New-JarvisGrammar([string]$Culture='en-GB') {
   return $grammar
 }
 
-function Get-JarvisAction($result) {
+function Get-JarvisAction($result,[bool]$VoiceActive=$false) {
   if($null -eq $result -or $result.Confidence -lt $settings.minimumConfidence){return $null}
   $action=[string]$result.Semantics.Value
-  if($action -in @('toggle','toggle-2','toggle-3','toggle-4','wake','new-chat','end','disable')){return $action}
-  return $null
+  if($action -notin @('toggle','toggle-2','toggle-3','toggle-4','wake','new-chat','end','disable')){return $null}
+  $closing=$action -in @('end','disable') -or ($VoiceActive -and $action -eq 'new-chat') -or
+    ($settings.activationBehavior -ne 'wake' -and (($VoiceActive -and $action -like 'toggle*') -or $action -match '^toggle-[2-4]$'))
+  if($closing){
+    $threshold=0.8
+    if($settings.PSObject.Properties.Name -contains 'endingMinimumConfidence'){$threshold=[double]$settings.endingMinimumConfidence}
+    if($result.Confidence -lt [Math]::Max([double]$settings.minimumConfidence,$threshold)){return $null}
+  }
+  return $action
 }
