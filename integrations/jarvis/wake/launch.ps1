@@ -9,4 +9,4 @@ $powershell=Get-JarvisPowerShell -SettingsPath (Join-Path $PSScriptRoot 'setting
 $dataRoot=Join-Path $PSScriptRoot 'data';New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
 $arguments=@('-STA','-NoProfile','-NonInteractive','-WindowStyle','Hidden','-File',('"'+$helper+'"'))
 if($StartPaused){$arguments+='-StartPaused'}
-Start-Process -FilePath $powershell -ArgumentList $arguments -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -RedirectStandardError (Join-Path $dataRoot 'launch-error.log') | Out-Null
+Start-Process -FilePath $powershell -ArgumentList $arguments -WorkingDirectory $PSScriptRoot -WindowStyle Hidden -RedirectStandardError (Join-Path $dataRoot 'launch-error.log') -RedirectStandardOutput (Join-Path $dataRoot 'launch-output.log') | Out-Null
