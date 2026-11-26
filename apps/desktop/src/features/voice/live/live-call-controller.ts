@@ -463,15 +463,21 @@ export class LiveCallController {
           case "turn-complete":
             resources.lastProviderTurnCompleteAt = Date.now();
             break;
-          case "error":
-            void this.failActive(callId, liveError(event.code));
+          case "error": {
+            const wire = value as { type?: unknown; code?: unknown; error?: { code?: unknown; type?: unknown } };
+            const providerCode = wire.error?.code ?? wire.code ?? wire.error?.type;
+            const code = wire.type === "error" ? (typeof providerCode === "string" && /^[a-zA-Z_]{1,48}$/.test(providerCode)
+              ? "LIVE_CODEX_" + providerCode.toUpperCase() : "LIVE_CODEX_PROVIDER_ERROR")
+              : wire.type === "delegation.created" ? "LIVE_DELEGATION_INCOMPLETE" : event.code;
+            void this.failActive(callId, liveError(code));
             break;
+          }
           default:
             break;
         }
       }
     } catch (error) {
-      void this.failActive(callId, liveError("LIVE_PROTOCOL_ERROR", String(error)));
+      void this.failActive(callId, liveError("LIVE_PROTOCOL_EVENT_HANDLER"));
     }
   }
 
