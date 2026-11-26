@@ -55,6 +55,8 @@ import { createLiveCallSlot } from "./call-service-slot";
 import { toLiveCallView } from "./call-service-view";
 import { pushLiveTranscript } from "./call-service-transcript";
 import { noteUserSpeech, noteUserTurn } from "./call-presence";
+import { jarvisQueueContinuation } from "../jarvis/queue-context";
+import { dispatchJarvisQueueContext } from "./jarvis-queue-control";
 
 export type { LiveCallServiceDeps, LiveOwner } from "./call-service-internals";
 
@@ -252,6 +254,7 @@ export class LiveCallService {
         slot.resolveMediaReleased = null;
         break;
     }
+    this.dispatchQueueContext(slot);
     this.publish(slot);
     this.feedback.pump(slot);
     return toLiveCallView(slot);
@@ -266,7 +269,7 @@ export class LiveCallService {
   reportUserTurn(owner: LiveOwner, input: { callId: string; itemId: string }): { ok: true } {
     const slot = this.requireCurrent(owner, input.callId);
     if (slot.binding?.adapterId !== "codex-live" || typeof input.itemId !== "string" || !input.itemId.trim() || input.itemId.length > 256) throw liveError("LIVE_PROTOCOL_ERROR");
-    noteUserTurn(slot, input.itemId, this.now()); this.publish(slot);
+    noteUserTurn(slot, input.itemId, this.now()); this.dispatchQueueContext(slot); this.publish(slot);
     return { ok: true };
   }
 
@@ -524,6 +527,7 @@ export class LiveCallService {
         ? await this.deps.loadWorkStartupContext?.({ callId: slot.callId, signal: slot.abort.signal })
         : undefined;
       this.assertCurrent(slot);
+      slot.jarvisQueueContext = jarvisQueueContinuation(startupContext);
       const context: LiveAdapterContext = {
         callId: slot.callId,
         binding: slot.binding,
@@ -599,6 +603,10 @@ export class LiveCallService {
     }
   }
 
+  private dispatchQueueContext(slot: Slot): void {
+    dispatchJarvisQueueContext(slot, { current: () => this.current, send: this.deps.sendControl, publish: value => this.publish(value) });
+  }
+
   private onInput(slot: Slot, bytes: Uint8Array, epoch: number): void {
     if (this.current !== slot || slot.phase !== "connected" || slot.muted || slot.desiredMuted || epoch !== slot.captureEpoch || !slot.adapter?.sendInputPcm) return;
     try { slot.adapter.sendInputPcm(bytes); }
@@ -618,7 +626,7 @@ export class LiveCallService {
         } catch (error) { void this.failAndCleanup(slot, error, "playback"); }
         return;
       case "transcript":
-        if (event.role === "user" && event.final && event.text.trim()) noteUserTurn(slot, event.id, this.now());
+        if (event.role === "user" && event.final && event.text.trim()) { noteUserTurn(slot, event.id, this.now()); this.dispatchQueueContext(slot); }
         pushLiveTranscript(slot, event, this.deps.sendTranscript, this.now);
         if (event.role === "user") this.publish(slot);
         return;

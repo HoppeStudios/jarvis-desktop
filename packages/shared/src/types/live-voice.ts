@@ -243,6 +243,7 @@ export type LiveCallView = {
   notice?: LiveError;
   workBinding?: LiveWorkBinding;
   workOperations?: LiveWorkOperationView[];
+  jarvisQueue?: { state: "ready" | "unavailable"; delivery: "pending" | "sent" | "not-sent" | "unknown" };
 };
 
 export type LiveWorkStopOperationResult = {
@@ -370,6 +371,7 @@ export type LivePlaybackCursor = {
 
 export type LiveControlEvent =
   | { callId: string; kind: "release-media" }
+  | { callId: string; kind: "session-context"; actionId: string; content: string }
   | { callId: string; kind: "reject-delegation"; actionId: string; delegationId: string; reason: "EXECUTION_NOT_CONNECTED" }
   | { callId: string; kind: "work-receipt"; actionId: string; delegationId: string; receipt: LiveProviderReceipt }
   | { callId: string; kind: "work-navigation"; actionId: string; sessionId: string }

@@ -98,6 +98,8 @@ export type Slot = {
   lastUserTurnAt?: number;
   userTurnCount?: number;
   userTurnIds?: Set<string>;
+  jarvisQueueContext?: { content: string; state: "ready" | "unavailable"; delivery: "pending" | "sent" | "not-sent" | "unknown" };
+  jarvisQueueDispatched?: boolean;
   assistantSpeaking: boolean;
   assistantPlaybackActive: boolean;
   playbackMonitorReady: boolean;
@@ -127,7 +129,7 @@ export type Slot = {
   delegationInstructions: Map<string, string>;
   pendingControls: Map<string, {
     timer: ReturnType<typeof setTimeout>;
-    kind: "reject" | "work-receipt" | "work-navigation" | "work-feedback";
+    kind: "reject" | "work-receipt" | "work-navigation" | "work-feedback" | "session-context";
     resolve?: (delivery: LiveReceiptDelivery) => void;
   }>;
   transcriptLengths: Map<string, number>;

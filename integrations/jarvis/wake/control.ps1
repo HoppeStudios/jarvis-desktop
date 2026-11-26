@@ -2,13 +2,14 @@ param([ValidateSet('status','toggle','wake','new-chat','end','disable','resume',
 $ErrorActionPreference='Stop'
 [Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
 . (Join-Path $PSScriptRoot 'Pi\wake\state.ps1')
+. (Join-Path $PSScriptRoot 'Pi\wake\listener-identity.ps1')
 $dataRoot=Join-Path $PSScriptRoot 'data'
 $statusPath=Join-Path $dataRoot 'status.json'
 if(-not (Test-Path -LiteralPath $statusPath)){throw 'Jarvis wake listener has no status. Start launch.ps1 first.'}
 $state=Read-JsonShared $statusPath
 $owner=Get-CimInstance Win32_Process -Filter ('ProcessId='+$state.pid)
 $expected=Join-Path $PSScriptRoot 'wake.ps1'
-if(-not $owner -or $owner.CommandLine -notlike ('*'+$expected+'*')){throw 'Jarvis wake listener is not running.'}
+if(-not (Test-JarvisListenerIdentity $owner $expected)){throw 'Jarvis wake listener is not running.'}
 if($Action -eq 'status'){$state|ConvertTo-Json -Compress;return}
 $id=[Guid]::NewGuid().ToString('N')
 $request=Join-Path $dataRoot ('request-'+$id+'.json');$result=Join-Path $dataRoot ('result-'+$id+'.json')

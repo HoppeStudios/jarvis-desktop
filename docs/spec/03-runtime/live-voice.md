@@ -255,3 +255,19 @@ it does not record general microphone audio or unrestricted dictation.
 ### Linked-chat answer delivery
 
 The reviewed MCP agent/steer operation reuses the existing IPC handler. Linked Codex input must identify the exact current turn, and native turn/steer enforces that identity atomically. Actual asynchronous question replies may be delivered as ordinary text to that source; this is message delivery, not native form submission. Queue answer recording requires a successful receipt and source readback.
+
+### Native queue continuation
+
+The first genuine deduplicated user turn in a Jarvis call sends the saved bounded
+queue snapshot through a typed owner-bound session-context control and the native
+Codex session.context.append speakable channel. Initial POST instructions alone
+are not evidence of queue presentation. A local send receipt appears in call
+status and is separate from actual speech or answer delivery. Assistant greetings
+do not trigger the continuation; failure leaves the queue unresolved and the call
+connected.
+
+Automatic invitations wait for the actual selected-runtime call/control state,
+an unlocked active PC, pending items, and the existing thirty-minute cooldown.
+Unrelated Windows/Discord microphone sessions do not prove a Jarvis call exists.
+They are never stopped or changed. The existing media permission and ownership
+guards remain.

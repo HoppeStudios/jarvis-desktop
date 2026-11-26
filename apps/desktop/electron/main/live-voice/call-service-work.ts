@@ -80,7 +80,7 @@ export function createLiveCallWorkHandlers(deps: Dependencies) {
           : { status: "not-sent", deliveryId: input.actionId, code: input.errorCode ?? "LIVE_WORK_FEEDBACK_UNDELIVERED" });
         return;
       }
-      if (pending.kind === "work-feedback") {
+      if (pending.kind === "work-feedback" || pending.kind === "session-context") {
         pending.resolve?.(input.applied
           ? { status: "sent", deliveryId: input.actionId }
           : { status: "not-sent", deliveryId: input.actionId, code: input.errorCode ?? "LIVE_WORK_FEEDBACK_UNDELIVERED" });

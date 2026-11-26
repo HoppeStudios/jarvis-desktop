@@ -22,6 +22,7 @@ import { noteSessionCleanupUserPresence } from "../../../lib/session-cleanup-rea
 import { installSessionCleanupRuntime } from "./session-cleanup-runtime";
 import { playPresenceGreeting, type PresenceGreetingResult } from "./presence-greeting";
 import { CodexTranscriptAssembler } from "./codex-transcript";
+import { sendJarvisSessionContext } from "./jarvis-session-context";
 
 export type LiveVoiceSnapshot = {
   status: LiveStatus | null;
@@ -623,6 +624,15 @@ export class LiveCallController {
     }
     if (event.kind === "playback-reset") {
       resources.pcm?.resetPlayback(event.playbackEpoch);
+      return;
+    }
+    if (event.kind === "session-context") {
+      const call = this.snapshot.call;
+      const completed = resources.completedControlActions ??= new Set();
+      const applied = sendJarvisSessionContext({callId:event.callId,currentCallId:call?.callId,
+        adapterId:call?.adapterId,actionId:event.actionId,content:event.content,channel:resources.channel,completed});
+      void liveVoiceApi.reportControlApplied({callId:event.callId,actionId:event.actionId,applied,
+        ...(!applied ? {errorCode:"LIVE_WORK_FEEDBACK_UNDELIVERED"} : {})});
       return;
     }
     if (event.kind === "work-receipt") {

@@ -1,9 +1,10 @@
 param([switch]$StartPaused)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Pi\wake\powershell.ps1')
+. (Join-Path $PSScriptRoot 'Pi\wake\listener-identity.ps1')
 & (Join-Path $PSScriptRoot 'Pi\wake\desktop-launch.ps1') -Background
 $helper=Join-Path $PSScriptRoot 'wake.ps1'
-$existing=Get-CimInstance Win32_Process -Filter "Name='pwsh.exe' OR Name='powershell.exe'" | Where-Object { $_.CommandLine -like ('*'+$helper+'*') -and $_.CommandLine -notmatch '-(Check|TestWav|Trigger)' }
+$existing=Get-CimInstance Win32_Process -Filter "Name='pwsh.exe' OR Name='powershell.exe'" | Where-Object { Test-JarvisListenerIdentity $_ $helper }
 if($existing){Write-Output 'Jarvis wake listener is already running.';return}
 $powershell=Get-JarvisPowerShell -SettingsPath (Join-Path $PSScriptRoot 'settings.json')
 $dataRoot=Join-Path $PSScriptRoot 'data';New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
