@@ -678,6 +678,7 @@ export class LiveCallService {
 
   private async endSlot(slot: Slot, reason: LiveEndReason, ownerGone = false): Promise<void> {
     if (slot.phase === "ended" || slot.phase === "failed") return;
+    this.deps.log?.("info", "live call ending", { callId: slot.callId, reason, ownerGone });
     if (slot.phase !== "closing") transition(slot, "closing");
     slot.muted = true;
     slot.desiredMuted = true;

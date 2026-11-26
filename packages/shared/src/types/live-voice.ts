@@ -14,6 +14,7 @@ export type LiveGreetingEvidence = {
 };
 
 /** Authenticated local control; media still belongs to the real main renderer. */
+export type LiveCallInput = { kind: "virtual-cable"; label: string };
 export type LiveAutomationControl = {
   requestId: string;
   action: "start" | "toggle" | "wake" | "new-chat" | "end";
@@ -29,11 +30,16 @@ export type LiveAutomationControl = {
   /** Automatic invitation deadline, 5–60 seconds after verified playback receipt. */
   presenceTimeoutSeconds?: number;
   expectedCallId?: string;
+  /** Cancel only the start request belonging to this same intent owner. */
+  expectedRequestId?: string;
+  /** Call-local capture selection; never changes the saved default. */
+  input?: LiveCallInput;
   /** Timeout of a verified automatic invitation, not manual End. */
   cleanupUnanswered?: boolean;
 };
 export type LiveAutomationRequest = {
   requestId: string;
+  input?: LiveCallInput;
   action: "start" | "cancel";
   workSessionId?: string;
   initialMuted?: boolean;

@@ -70,7 +70,7 @@ export type LiveCallServiceDeps = {
    * renderer, so a collapsed generic toast could never be traced back to
    * the error code that produced it.
    */
-  log?: (level: "warn" | "error", message: string, data: Record<string, unknown>) => void;
+  log?: (level: "info" | "warn" | "error", message: string, data: Record<string, unknown>) => void;
 };
 
 export type Slot = {

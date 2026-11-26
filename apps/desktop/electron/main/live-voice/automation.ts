@@ -16,7 +16,7 @@ function validGreetingEvidence(raw: unknown): boolean {
 export function parseAutomationControl(raw: unknown): LiveAutomationControl {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
   const v = raw as Record<string, unknown>;
-  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "freshCoordinator", "initialMuted", "presenceGreeting", "expectedCallId", "intentId", "intentSequence", "cleanupUnanswered", "presenceTimeoutSeconds"].includes(k)) ||
+  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "freshCoordinator", "initialMuted", "presenceGreeting", "expectedCallId", "intentId", "intentSequence", "cleanupUnanswered", "presenceTimeoutSeconds", "input", "expectedRequestId"].includes(k)) ||
     !uuid(v.requestId) || !["start", "toggle", "wake", "new-chat", "end"].includes(String(v.action)) ||
     ((v.intentId !== undefined || v.intentSequence !== undefined) && (!uuid(v.intentId) || !Number.isSafeInteger(v.intentSequence) || Number(v.intentSequence) < 1)) ||
     (v.workSessionId !== undefined && (typeof v.workSessionId !== "string" || !v.workSessionId.trim() || v.workSessionId.length > 256)) ||
@@ -24,6 +24,10 @@ export function parseAutomationControl(raw: unknown): LiveAutomationControl {
     (v.presenceGreeting !== undefined && typeof v.presenceGreeting !== "boolean") ||
     (v.presenceTimeoutSeconds !== undefined && (typeof v.presenceTimeoutSeconds !== "number" || !Number.isFinite(v.presenceTimeoutSeconds) || v.presenceTimeoutSeconds < 5 || v.presenceTimeoutSeconds > 60 || v.presenceGreeting !== true || v.freshCoordinator !== true)) ||
     (v.expectedCallId !== undefined && !uuid(v.expectedCallId)) ||
+    (v.expectedRequestId !== undefined && (!uuid(v.expectedRequestId) || v.action !== "end" || !uuid(v.intentId) || v.expectedCallId !== undefined || v.cleanupUnanswered !== undefined)) ||
+    (v.input !== undefined && (v.action !== "start" || !v.input || typeof v.input !== "object" || Array.isArray(v.input) ||
+      Object.keys(v.input).some(k => !["kind", "label"].includes(k)) || (v.input as Record<string, unknown>).kind !== "virtual-cable" ||
+      typeof (v.input as Record<string, unknown>).label !== "string" || !/^[^\x00-\x1f\x7f]{1,256}$/.test(String((v.input as Record<string, unknown>).label)))) ||
     (v.cleanupUnanswered !== undefined && (v.cleanupUnanswered !== true || v.action !== "end" || !uuid(v.expectedCallId))) ||
     (v.freshCoordinator !== undefined && typeof v.freshCoordinator !== "boolean") ||
     (v.freshCoordinator === true && v.workSessionId !== undefined)) throw fail("INVALID_PARAMS");
@@ -54,6 +58,7 @@ type AutomationDependencies = {
 /** Main owns decisions and cancellation, never the renderer's media objects. */
 export class LiveVoiceAutomation {
   private pending: Pending | null = null;
+  private readonly started = new Map<string, { callId: string; intentId?: string; owner: LiveOwner }>();
   private invitation: { callId: string; sessionId: string; owner: LiveOwner; expiresAt: number } | null = null;
   private decisions: Promise<unknown> = Promise.resolve();
   private readonly requests = new Map<string, { fingerprint: string; promise: Promise<LiveAutomationResult> }>();
@@ -96,6 +101,18 @@ export class LiveVoiceAutomation {
     await this.pruneOwner();
     let status = await this.deps.status();
     if (request.expectedCallId && status.call?.callId !== request.expectedCallId) throw fail("LIVE_STALE_CALL");
+    if (request.expectedRequestId) {
+      const pending = this.pending;
+      if (pending?.request.requestId === request.expectedRequestId && pending.request.intentId === request.intentId) {
+        await this.cancelPending(pending);
+        return { completion: Promise.resolve({ requestId: request.requestId, state: "cancelled" }) };
+      }
+      const started = this.started.get(request.expectedRequestId);
+      const owner = this.deps.owner();
+      if (!started || started.intentId !== request.intentId || !owner || ownerKey(owner) !== ownerKey(started.owner) ||
+          owner.url !== started.owner.url || status.call?.callId !== started.callId) throw fail("LIVE_STALE_CALL");
+      request = { ...request, expectedCallId: started.callId };
+    }
     if (request.action === "end" || request.action === "toggle" && (this.pending || live(status.call))) {
       const invitation = this.invitation;
       if (request.cleanupUnanswered && invitation && live(status.call) && invitation.callId === request.expectedCallId) {
@@ -145,7 +162,7 @@ export class LiveVoiceAutomation {
       }, this.deps.timeoutMs ?? 60_000);
       this.pending = { request, owner, resolve, reject, timer, coordinatorSessionId };
       try {
-        this.deps.send(owner, { requestId: request.requestId, action: "start", workSessionId: coordinatorSessionId ?? request.workSessionId, initialMuted: request.initialMuted !== false, presenceGreeting: request.presenceGreeting === true });
+        this.deps.send(owner, { requestId: request.requestId, action: "start", workSessionId: coordinatorSessionId ?? request.workSessionId, initialMuted: request.initialMuted !== false, presenceGreeting: request.presenceGreeting === true, ...(request.input ? { input: request.input } : {}) });
       } catch {
         clearTimeout(timer); this.pending = null; reject(fail("LIVE_INVALID_OWNER"));
       }
@@ -257,6 +274,8 @@ export class LiveVoiceAutomation {
             expiresAt: this.now() + (pending.request.presenceTimeoutSeconds ?? 10) * 1000 };
           if (this.unanswered(call, invitation)) this.invitation = invitation;
         }
+        this.started.set(pending.request.requestId, { callId: call.callId, intentId: pending.request.intentId, owner });
+        if (this.started.size > 128) this.started.delete(this.started.keys().next().value!);
         pending.resolve({ requestId: response.requestId, state: "connected", callId: call.callId, muted: call.muted, playbackBlocked: call.playbackBlocked,
         ...(pending.coordinatorSessionId ? { coordinatorSessionId: pending.coordinatorSessionId } : {}),
         ...(pending.request.presenceGreeting ? { greetingPlayed: response.greetingPlayed === true,

@@ -279,3 +279,23 @@ an actual reply as coordinator work, not as an unrelated word or a native ask in
 the coordinator itself. The same item identity accompanies the real worker prompt;
 the worker rereads current revisions and verifies source delivery before recording
 anything. Presence and ambiguous replies remain non-answers.
+
+
+## Phone input and request-scoped cancellation
+
+Authenticated `voice/control` start accepts optional `input` with
+`{kind:"virtual-cable",label:string}`. Main validates the bounded exact selector
+and passes it to its real renderer. Only one exact non-default audio capture
+match is accepted; absent/ambiguous/hidden devices fail without a physical-mic
+fallback. Only that call uses the resolved device. Saved microphone settings,
+account/voice and other calls are unchanged.
+
+An end with `expectedRequestId` requires the original start's `intentId`. It
+cancels only that pending start, or its verified completed call under the same
+renderer identity. Unknown, stale, different-owner and newer-call cases fail
+closed. This does not grant permission to adopt another active call.
+
+The intent classifier requests the session's existing Fast preference on a
+supported wire; low reasoning and admission checks remain. Diagnostics contain
+numeric provider/completion durations and the Fast-request flag, never user text.
+Call termination diagnostics contain only call identity and the bounded reason.

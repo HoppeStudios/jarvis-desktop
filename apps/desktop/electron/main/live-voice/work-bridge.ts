@@ -51,6 +51,7 @@ type LaunchResult = {
 
 type WorkSessionSummary = LiveWorkSessionRecord & {
   thinkingLevel?: unknown;
+  fastMode?: unknown;
 };
 
 type WorkProjectSummary = { name?: unknown; path?: unknown };
@@ -125,6 +126,7 @@ export function createLiveWorkBridge(input: {
     overrides: { providerId?: string; modelId?: string; thinkingLevel?: ThinkingLevel },
   ) => Promise<LaunchResult>;
   completeIntent?: typeof completeOneShot;
+  onClassifierTiming?: (timing: { providerMs: number; completionMs: number; fastRequested: boolean }) => void;
   onClassifierFailure?: (failure: { stage: string; code: string }) => void;
   onOperation: (callId: string, update: LiveWorkOperationUpdate) => void;
   getWorkContextConsent?: (callId: string) => boolean;
@@ -512,6 +514,7 @@ export function createLiveWorkBridge(input: {
         });
         const classifierSessionId = hasTarget ? binding.workSessionId : `live-work-classifier:${candidate.callId}`;
         stage = "provider";
+        const providerStarted = performance.now();
         const launch = await raceWithSignal(input.resolveCompletionProvider(
           {
             id: classifierSessionId,
@@ -545,12 +548,15 @@ export function createLiveWorkBridge(input: {
           messages: [{ role: "user", content: groundedInput, timestamp: Date.now() }],
         };
         stage = "completion";
+        const completionStarted = performance.now();
         const result = await (input.completeIntent ?? completeOneShot)(provider, context, "low", {
           sessionId: classifierSessionId,
           signal,
           maxOutputTokens: 1_024,
+          fastMode: session.fastMode === true,
         });
         signal.throwIfAborted();
+        input.onClassifierTiming?.({ providerMs: Math.round(completionStarted - providerStarted), completionMs: Math.round(performance.now() - completionStarted), fastRequested: session.fastMode === true });
         const output = result.text.trim();
         if (new TextEncoder().encode(output).byteLength > 8 * 1024) return null;
         try {

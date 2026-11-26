@@ -36,3 +36,20 @@ describe("completeOneShot Responses answers", () => {
     });
   });
 });
+
+
+describe("one-shot Fast preference", () => {
+  it("passes priority only for an opted-in completion", async () => {
+    for (const enabled of [false, true]) {
+      const faux = createFauxCore({ api: "openai-responses", provider: provider.id });
+      faux.setResponses([fauxAssistantMessage([{ type: "text", text: "ok" }])]);
+      await completeOneShot(provider, { messages: [{ role: "user", content: "classify", timestamp: 1 }] }, "off", {
+        fastMode: enabled,
+        stream: (model, context, options) => {
+          expect((options as { serviceTier?: string }).serviceTier).toBe(enabled ? "priority" : undefined);
+          return faux.streamSimple(model, normalizeContext(context), options);
+        },
+      });
+    }
+  });
+});

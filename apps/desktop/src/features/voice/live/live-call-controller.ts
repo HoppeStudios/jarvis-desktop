@@ -7,6 +7,7 @@ import {
 } from "@pi-desktop/voice-runtime/live";
 import type {
   LiveCallView,
+  LiveCallInput,
   LiveControlEvent,
   LiveStatus,
   LiveTranscriptSegment,
@@ -23,6 +24,7 @@ import { installSessionCleanupRuntime } from "./session-cleanup-runtime";
 import { playPresenceGreeting, type PresenceGreetingResult } from "./presence-greeting";
 import { CodexTranscriptAssembler } from "./codex-transcript";
 import { sendJarvisSessionContext } from "./jarvis-session-context";
+import { requestCallMicrophone } from "./call-input";
 
 export type LiveVoiceSnapshot = {
   status: LiveStatus | null;
@@ -151,7 +153,7 @@ export class LiveCallController {
     });
   }
 
-  async start(options: { workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean; requestId?: string; signal?: AbortSignal } = {}): Promise<void> {
+  async start(options: { input?: LiveCallInput; workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean; requestId?: string; signal?: AbortSignal } = {}): Promise<void> {
     if (options.signal?.aborted) throw liveError("LIVE_STALE_CALL");
     if (this.snapshot.starting || this.snapshot.stopping || isLive(this.snapshot.call?.phase)) return;
     if (this.snapshot.call?.error?.code === "LIVE_MEDIA_RELEASE_UNCONFIRMED" || this.snapshot.errorCode === "LIVE_MEDIA_RELEASE_UNCONFIRMED") {
@@ -193,7 +195,9 @@ export class LiveCallController {
           void liveVoiceApi.end({ callId: prepared.callId, reason: "user-cancelled-start" }).catch(() => undefined);
         }
       }).catch(() => undefined);
-      micRequest = requestMicrophone(this.microphoneDeviceId);
+      micRequest = options.input
+        ? requestCallMicrophone(navigator.mediaDevices, options.input)
+        : requestMicrophone(this.microphoneDeviceId);
       resources.microphoneRequest = micRequest;
       void micRequest.then((stream) => {
         resources.microphoneRequestSettled = true;

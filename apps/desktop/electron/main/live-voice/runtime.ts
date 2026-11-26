@@ -51,7 +51,7 @@ export function createLiveCallService(input: {
     provider: import("@pi-desktop/agent-runtime").RuntimeProviderConfig;
   }>;
   /** Terminal call failures land in the `provider` log channel (see spec 09). */
-  log?: (level: "warn" | "error", message: string, data: Record<string, unknown>) => void;
+  log?: (level: "info" | "warn" | "error", message: string, data: Record<string, unknown>) => void;
 }): LiveCallService {
   const backgroundLeases = new Map<number, BackgroundLease>();
   const authorizedWorkspaces = new WeakMap<object, string | null>();
@@ -79,6 +79,7 @@ export function createLiveCallService(input: {
     },
     resolveCompletionProvider: input.resolveCompletionProvider,
     onClassifierFailure: failure => input.log?.("warn", "Live work classification failed", failure),
+    onClassifierTiming: timing => input.log?.("info", "Live work classification timing", timing),
     onOperation: (callId, update) => {
       const operation = update.operation;
       liveCallService?.notifyWorkOperation(callId, {
