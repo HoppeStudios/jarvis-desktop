@@ -1,6 +1,6 @@
 function Read-JarvisSettings([string]$Path=(Join-Path $PSScriptRoot 'settings.json')) {
   $configuration=Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-  $defaults=@{wakePhrases=@('Hey Jarvis');pollIntervalSeconds=2;notificationsEnabled=$true;notificationVoice='';notificationRate=0;notificationVolume=85;announcementMaxChars=900;announcementTimeoutSeconds=90;endSilenceMilliseconds=350;ambiguousSilenceMilliseconds=600;activationBehavior='toggle';recognizerCulture='en-GB';commandOverrides=[pscustomobject]@{}}
+  $defaults=@{wakePhrases=@('Hey Jarvis','Hey Vision');pollIntervalSeconds=2;notificationsEnabled=$true;notificationVoice='';notificationRate=0;notificationVolume=85;announcementMaxChars=900;announcementTimeoutSeconds=90;endSilenceMilliseconds=350;ambiguousSilenceMilliseconds=600;activationBehavior='toggle';recognizerCulture='en-GB';commandOverrides=[pscustomobject]@{}}
   foreach($key in $defaults.Keys){if($configuration.PSObject.Properties.Name -notcontains $key){$configuration | Add-Member -NotePropertyName $key -NotePropertyValue $defaults[$key]}}
   foreach($entry in @{invitationCooldownMinutes=30;invitationTimeoutSeconds=10;returnIdleSeconds=120}.GetEnumerator()){if($configuration.PSObject.Properties.Name -notcontains $entry.Key){$configuration|Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value}}
   Assert-JarvisSettings $configuration
@@ -41,7 +41,7 @@ function Save-JarvisSettings($Configuration,[string]$Path,[string]$ExpectedConte
 }
 function Get-JarvisWakePhrases {
   if($settings -and $settings.PSObject.Properties.Name -contains 'wakePhrases'){return @($settings.wakePhrases | ForEach-Object {$_.Trim().ToLowerInvariant()} | Select-Object -Unique)}
-  return @('hey jarvis')
+  return @('hey jarvis','hey vision')
 }
 function Remove-JarvisWakeFromSpeech([string]$Text) {
   foreach($wake in @(Get-JarvisWakePhrases | Sort-Object Length -Descending)){

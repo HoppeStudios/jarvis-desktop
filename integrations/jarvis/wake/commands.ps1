@@ -19,7 +19,7 @@ function New-JarvisGrammar([string]$Culture='en-GB') {
   if($settings -and $settings.PSObject.Properties.Name -contains 'commandOverrides'){
     foreach($property in $settings.commandOverrides.PSObject.Properties){$commands[$property.Name]=@($property.Value)}
   }
-  $wakePhrases=if(Get-Command Get-JarvisWakePhrases -ErrorAction SilentlyContinue){@(Get-JarvisWakePhrases)}else{@('hey jarvis')}
+  $wakePhrases=if(Get-Command Get-JarvisWakePhrases -ErrorAction SilentlyContinue){@(Get-JarvisWakePhrases)}else{@('hey jarvis','hey vision')}
   $prefix=New-Object System.Speech.Recognition.Choices
   $prefix.Add([string[]]@('please','can you','could you','would you','can you please','could you please','would you please','I want you to','I would like you to'))
   $suffix=New-Object System.Speech.Recognition.Choices

@@ -46,6 +46,9 @@ the GUI and its native settings rather than the old CLI/settings entry points.
 
 ## Behavior
 
+The default wake names are **Hey Jarvis** and **Hey Vision**; either uses the same
+on/off toggle. Saved custom wake names are preserved.
+
 The saved wake names, command groups, confidence, silence and recognizer culture
 are retained. A bare wake phrase toggles the desired on/off state; repeated
 phrases delivered in one SAPI utterance preserve each toggle. Recognition and
