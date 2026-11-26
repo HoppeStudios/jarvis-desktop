@@ -68,3 +68,12 @@ test("Live playback activity IPC accepts only the bounded monitor state", async 
     ready: true,
   }), { errorCode: "LIVE_PROTOCOL_ERROR" });
 });
+
+
+test("Live end diagnostics accept bounded error codes only on error termination",async t=>{
+ const server=await createServer({root:fileURLToPath(new URL("..",import.meta.url)),configFile:false,server:{middlewareMode:true,hmr:false,ws:false},appType:"custom",optimizeDeps:{noDiscovery:true,include:[]}});
+ t.after(()=>server.close());const {parseEnd}=await server.ssrLoadModule("/electron/main/ipc/live-voice-ipc.ts");
+ const request={callId:"call-a",reason:"protocol-error",errorCode:"LIVE_PROTOCOL_ERROR"};assert.deepEqual(parseEnd(request),request);
+ for(const patch of [{errorCode:"provider text with spaces"},{reason:"user-ended"},{errorCode:"LIVE_"+"A".repeat(80)},{extra:true}])assert.throws(()=>parseEnd({...request,...patch}));
+ assert.deepEqual(parseEnd({callId:"call-a",reason:"user-ended"}),{callId:"call-a",reason:"user-ended"});
+});

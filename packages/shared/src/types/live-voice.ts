@@ -350,7 +350,7 @@ export type LiveMediaReport =
   | { callId: string; kind: "released" };
 
 export type LiveEndRequest =
-  | { callId: string; reason: LiveEndReason }
+  | { callId: string; reason: LiveEndReason; errorCode?: string }
   | { requestId: string; reason: "user-cancelled-start" };
 
 export type LiveDelegationRequest = {

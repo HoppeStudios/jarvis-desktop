@@ -357,6 +357,9 @@ export class LiveCallService {
       return { ok: true };
     }
     const slot = this.requireCurrent(owner, request.callId, true);
+    if (request.errorCode && /^LIVE_[A-Z0-9_]{1,70}$/.test(request.errorCode) && ["network-error", "protocol-error"].includes(request.reason)) {
+      slot.error = { code: request.errorCode, stage: "renderer", retriable: false };
+    }
     await this.endSlot(slot, request.reason);
     return { ok: true };
   }
@@ -678,7 +681,7 @@ export class LiveCallService {
 
   private async endSlot(slot: Slot, reason: LiveEndReason, ownerGone = false): Promise<void> {
     if (slot.phase === "ended" || slot.phase === "failed") return;
-    this.deps.log?.("info", "live call ending", { callId: slot.callId, reason, ownerGone });
+    this.deps.log?.("info", "live call ending", { callId: slot.callId, reason, ownerGone, ...(slot.error ? { code: slot.error.code } : {}) });
     if (slot.phase !== "closing") transition(slot, "closing");
     slot.muted = true;
     slot.desiredMuted = true;

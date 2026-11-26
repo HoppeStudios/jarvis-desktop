@@ -745,8 +745,10 @@ export class LiveCallController {
   private async failActive(callId: string, error: unknown): Promise<void> {
     const resources = this.resources.get(callId);
     if (!resources) return;
-    this.patch({ errorCode: errorCode(error) });
-    await liveVoiceApi.end({ callId, reason: "network-error" }).catch(() => undefined);
+    const code = errorCode(error);
+    this.patch({ errorCode: code });
+    await liveVoiceApi.end({ callId, reason: code === "LIVE_PROTOCOL_ERROR" ? "protocol-error" : "network-error",
+      ...(/^LIVE_[A-Z0-9_]{1,70}$/.test(code) ? { errorCode: code } : {}) }).catch(() => undefined);
   }
 
   private releaseResources(resources: StartResources, notifyMain: boolean): Promise<void> {

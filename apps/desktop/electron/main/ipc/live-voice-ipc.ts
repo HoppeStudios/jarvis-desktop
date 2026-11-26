@@ -268,12 +268,13 @@ function parseControlApplied(raw: unknown) {
   return { callId: callId(input.callId), actionId: input.actionId, applied: input.applied, ...(typeof input.errorCode === "string" ? { errorCode: input.errorCode } : {}) };
 }
 
-function parseEnd(raw: unknown) {
+export function parseEnd(raw: unknown) {
   const input = record(raw);
   if (typeof input.reason !== "string" || !END_REASONS.has(input.reason)) return invalid();
   if (input.callId !== undefined) {
-    exactKeys(input, ["callId", "reason"]);
-    return { callId: callId(input.callId), reason: input.reason as LiveEndReason };
+    exactKeys(input, ["callId", "reason", "errorCode"]);
+    if (input.errorCode !== undefined && (typeof input.errorCode !== "string" || !/^LIVE_[A-Z0-9_]{1,70}$/.test(input.errorCode) || !["network-error", "protocol-error"].includes(input.reason))) return invalid();
+    return { callId: callId(input.callId), reason: input.reason as LiveEndReason, ...(typeof input.errorCode === "string" ? { errorCode: input.errorCode } : {}) };
   }
   exactKeys(input, ["requestId", "reason"]);
   if (typeof input.requestId !== "string" || !input.requestId || input.requestId.length > 64 || input.reason !== "user-cancelled-start") return invalid();
