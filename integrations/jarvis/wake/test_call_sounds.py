@@ -2,6 +2,7 @@ import concurrent.futures
 import io
 import json
 import os
+import struct
 from pathlib import Path
 import tempfile
 import unittest
@@ -49,6 +50,10 @@ class CallSoundTests(unittest.TestCase):
             with wave.open(io.BytesIO(wave_bytes(cue)), 'rb') as audio:
                 self.assertEqual((audio.getnchannels(), audio.getsampwidth(), audio.getframerate()), (1, 2, 24000))
                 self.assertLess(audio.getnframes() / audio.getframerate(), 0.25)
+                pcm = audio.readframes(audio.getnframes())
+                samples = struct.unpack('<' + 'h' * (len(pcm) // 2), pcm)
+                self.assertEqual((samples[0], samples[-1]), (0, 0))
+                self.assertLess(max(abs(sample) for sample in samples), 32767)
 
     @unittest.skipUnless(os.name == 'nt', 'Windows worker locking')
     def test_overlapping_workers_and_restarts_play_once(self):
