@@ -35,15 +35,25 @@ def transition(history, call):
 
 
 def wave_bytes(cue):
-    rate, seconds = 24000, 0.085
-    notes = (660, 880) if cue == 'start' else (880, 550)
-    samples = []
-    for frequency in notes:
-        count = int(rate * seconds)
+    rate, duration, spacing = 24000, 0.170, 0.075
+    # A soft D/A fifth: overlapping rounded plucks, with a little warm body
+    # and a rapidly fading upper partial. No alarm-like gap or hard cutoff.
+    notes = (587.33, 880.0) if cue == 'start' else (880.0, 587.33)
+    samples = [0.0] * int(rate * (duration + spacing))
+    count = int(rate * duration)
+    for index, frequency in enumerate(notes):
+        onset = int(rate * spacing * index)
+        level = (0.20, 0.24)[index]
         for i in range(count):
-            envelope = math.sin(math.pi * i / (count - 1)) ** 2
-            samples.append(int(32767 * 0.18 * envelope * math.sin(2 * math.pi * frequency * i / rate)))
-        samples.extend([0] * int(rate * 0.015))
+            t = i / rate
+            attack = 1 - math.exp(-t / 0.004)
+            release = min(1.0, (count - 1 - i) / (rate * 0.045))
+            envelope = attack * math.exp(-t / 0.070) * math.sin(math.pi * release / 2) ** 2
+            phase = 2 * math.pi * frequency * t
+            tone = (0.83 * math.sin(phase) + 0.13 * math.sin(phase / 2)
+                    + 0.10 * math.exp(-t / 0.035) * math.sin(phase * 2))
+            samples[onset + i] += level * envelope * tone
+    samples = [round(32767 * sample) for sample in samples]
     out = io.BytesIO()
     with wave.open(out, 'wb') as audio:
         audio.setnchannels(1)
