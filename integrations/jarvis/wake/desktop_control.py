@@ -58,10 +58,22 @@ def queue_poll(root):
             'monitor':packet.get('monitor')}
 
 
+def notify_call_sound(root, result, receipt=False):
+    try:
+        spec = importlib.util.spec_from_file_location('jarvis_call_sounds', Path(__file__).with_name('call_sounds.py'))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        call = {'callId':result.get('callId'), 'phase':result.get('state')} if receipt else result.get('call')
+        result['callSound'] = module.observe(root, call)
+    except (OSError, ImportError, ValueError, RuntimeError):
+        result['callSound'] = {'error':'Call sound unavailable.'}
+    return result
+
+
 def execute(client, request, root):
     operation = request.get('operation')
     if operation == 'poll':
-        status = client.invoke('voice/status')
+        status = notify_call_sound(root, client.invoke('voice/status'))
         try:
             status.update(queue_poll(root))
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
@@ -86,7 +98,7 @@ def execute(client, request, root):
         payload['cleanupUnanswered'] = True
     if request.get('expectedCallId'):
         payload['expectedCallId'] = request['expectedCallId']
-    return client.invoke('voice/control', [payload], True)
+    return notify_call_sound(root, client.invoke('voice/control', [payload], True), receipt=True)
 
 
 def main():
