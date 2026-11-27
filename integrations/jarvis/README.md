@@ -33,9 +33,15 @@ Do not install one fork's runtime over the other's active call.
 Install the [Pi global instructions](AGENTS.pi.md) at `~/.pi/agent/AGENTS.md`,
 preserving local edits. The Pi loader caps this file at 32 KiB: this concise
 version keeps the queue/tool/permission rules inside the loaded budget. Register
-the three [Pi skills](skills/) through native Skills import or reviewed
+the [Pi skills](skills/) through native Skills import or reviewed
 `skill/import` MCP operation. CLI skill paths alone do not register managed
 Desktop skills. The Codex-specific Jarvis skills remain with the Codex fork.
+
+`python integrations/jarvis/install-interface-skills.py --validate-only` checks
+the narrow interface-skill update. Without that flag it prepares shared/CLI skill
+files and the managed global Pi instruction block while preserving other config.
+Then import those reviewed directories through native `skill/import` and verify
+native `skill/read`; the preparatory file write alone is not Desktop registration.
 
 1. Add/sign in to the OpenAI/Codex provider in native Settings. Select the existing
    Codex Live binding and your voice under **Live voice**.

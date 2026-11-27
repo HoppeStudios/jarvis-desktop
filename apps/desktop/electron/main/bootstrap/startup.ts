@@ -1,5 +1,6 @@
 import { app, BrowserWindow, crashReporter, Menu, safeStorage } from "electron";
 import { readSidebarBackup } from "../sidebar-preferences";
+import { shouldStartMcpControl } from "../mcp-startup-policy";
 import { createScheduledRunner } from "../runtime/scheduled-runner";
 import { onConfirmedQuit } from "./confirmed-quit";
 import {
@@ -382,6 +383,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       });
     }
     const host = getHost();
+    let jarvisControlOptIn = false;
     // Preferences for the boot animation, when settings were readable. An
     // unreadable backend leaves this null and discovery falls back to the
     // defaults, so a launch with no host still plays what the user dropped in.
@@ -396,6 +398,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
           fontScale?: unknown;
           macosWindowTranslucency?: unknown;
           startupAnimation?: unknown;
+          jarvisEnabled?: unknown;
           preventScreenSleep?: unknown;
           keepAwakeWhileRunning?: unknown;
         } | null;
@@ -405,6 +408,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
         applyPreventScreenSleep(stored);
         applyKeepAwakeWhileRunning(stored);
         storedStartupAnimationSettings = stored;
+        jarvisControlOptIn = stored?.jarvisEnabled === true;
         await applyNetworkProxyFromAppSettings(stored);
       } catch {
         // Keep the OS-locale menu until settings can be read again, while
@@ -444,7 +448,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       await applyInstallSetup(process.env.PI_DESKTOP_INSTALL_SETUP, invokeIpc);
     }
     await ensureWindow();
-    if (process.env.PI_DESKTOP_MCP_CONTROL === "1") {
+    if (shouldStartMcpControl(process.env.PI_DESKTOP_MCP_CONTROL, jarvisControlOptIn)) {
       try {
         state.mcpControl = new McpControlServer({
           dataDir,

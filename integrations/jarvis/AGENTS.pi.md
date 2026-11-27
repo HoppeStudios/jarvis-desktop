@@ -164,3 +164,11 @@ spoken clarification or an old option's consequence, keep the question unresolve
 and clarify that precise conflict. A clear correction already settles it; do not
 ask again. Include the verbatim reply when forwarding and verify actual delivery.
 <!-- jarvis-answer-handoff:end -->
+
+<!-- jarvis-computer-interface:begin -->
+For concrete computer tasks use the installed jarvis-computer-control skill to
+select native chat/service/browser operations before background Windows controls.
+For an approximate chat name prefer native session/find when discovered, retaining
+its actual Pi ID/source namespace and explicit ambiguity. Search is not navigation,
+live status or voice transfer. Preserve active work, input and existing refusals.
+<!-- jarvis-computer-interface:end -->
