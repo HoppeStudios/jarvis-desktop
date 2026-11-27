@@ -10,9 +10,11 @@ def install(home,validate_only=False):
     source=Path(__file__).parent
     changes=[]
     for name in ('jarvis-computer-control','jarvis-pi-switch-chat'):
-        content=(source/'skills'/name/'SKILL.md').read_text(encoding='utf-8')
-        for directory in (home/'.agents/skills',home/'.pi/agent/skills'):
-            changes.append((directory/name/'SKILL.md',content))
+        files=['SKILL.md']+(['scripts/chat.py'] if name=='jarvis-computer-control' else [])
+        for relative in files:
+            content=(source/'skills'/name/relative).read_text(encoding='utf-8')
+            for directory in (home/'.agents/skills',home/'.pi/agent/skills'):
+                changes.append((directory/name/relative,content))
     settings_path=home/'.pi/agent/settings.json'
     settings_text=settings_path.read_text(encoding='utf-8-sig')
     settings=json.loads(settings_text)

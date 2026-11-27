@@ -40,3 +40,11 @@ without printing credentials. Use a fresh connection with the registered adapter
 for a stale tool catalog; a real permission refusal stays final. An inactive endpoint
 must be restored through reviewed startup/configuration, not another app-control
 path. Do not interrupt active work to reload the application.
+
+For a stale catalog, `scripts/chat.py` uses the already installed authenticated
+Pi adapter directly. Run it with the Python interpreter in the selected runtime's
+pi-runtime.json. `chat.py find "approximate title" --owner codex --include-archived`
+reads metadata. `chat.py open ACTUAL_PI_ID` requests navigation only when the user
+asked to open that chat. It neither transfers voice nor submits work. The open
+receipt explicitly leaves UI selection unverified; inspect the actual app if that
+distinction matters. Unknown capabilities or real refusals stop without a fallback.

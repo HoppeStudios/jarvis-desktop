@@ -13,7 +13,7 @@ class InstallTests(unittest.TestCase):
             home=Path(folder);agent=home/'.pi/agent';agent.mkdir(parents=True)
             settings={'skills':['custom-skill'],'permissionMode':'custom','voice':{'binding':'chosen'},'other':{'keep':True}}
             (agent/'settings.json').write_text(json.dumps(settings),encoding='utf-8');(agent/'AGENTS.md').write_text('User instructions remain.\n',encoding='utf-8')
-            self.assertEqual(module.install(home,True)['changedFiles'],6)
+            self.assertEqual(module.install(home,True)['changedFiles'],8)
             self.assertFalse((home/'.agents/skills/jarvis-computer-control/SKILL.md').exists())
             module.install(home)
             updated=json.loads((agent/'settings.json').read_text(encoding='utf-8'))
