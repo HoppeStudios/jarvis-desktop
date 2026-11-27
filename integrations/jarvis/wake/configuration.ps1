@@ -1,5 +1,10 @@
 function Read-JarvisSettings([string]$Path=(Join-Path $PSScriptRoot 'settings.json')) {
   $configuration=Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+  # capture-defaults:begin
+  foreach($entry in @{captureCommands=$false;captureTtsVoice='';captureLanguage='cs';captureWakeAliases=@('Hej Jarvis','Hej Jarvisi');captureEndPhrases=@('konec','finish');captureSilenceMilliseconds=900}.GetEnumerator()){
+    if($configuration.PSObject.Properties.Name -notcontains $entry.Key){$configuration|Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value}
+  }
+  # capture-defaults:end
   $defaults=@{wakePhrases=@('Hey Jarvis');pollIntervalSeconds=2;notificationsEnabled=$true;notificationVoice='';notificationRate=0;notificationVolume=85;announcementMaxChars=900;announcementTimeoutSeconds=90;endSilenceMilliseconds=350;ambiguousSilenceMilliseconds=600;activationBehavior='toggle';recognizerCulture='en-GB';commandOverrides=[pscustomobject]@{}}
   foreach($key in $defaults.Keys){if($configuration.PSObject.Properties.Name -notcontains $key){$configuration | Add-Member -NotePropertyName $key -NotePropertyValue $defaults[$key]}}
   foreach($entry in @{invitationCooldownMinutes=30;invitationTimeoutSeconds=10;returnIdleSeconds=120}.GetEnumerator()){if($configuration.PSObject.Properties.Name -notcontains $entry.Key){$configuration|Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value}}
@@ -8,6 +13,16 @@ function Read-JarvisSettings([string]$Path=(Join-Path $PSScriptRoot 'settings.js
   return $configuration
 }
 function Assert-JarvisSettings($configuration) {
+  # capture-validation:begin
+  if($configuration.PSObject.Properties.Name -contains 'captureCommands'){
+    if($configuration.captureCommands -isnot [bool] -or $configuration.captureLanguage -notin @('cs','en','auto') -or
+       $configuration.captureSilenceMilliseconds -lt 300 -or $configuration.captureSilenceMilliseconds -gt 2500){throw 'Invalid spoken-command capture settings.'}
+    foreach($key in @('captureWakeAliases','captureEndPhrases')){
+      if(@($configuration.$key).Count -gt 12){throw 'Too many capture phrases.'}
+      foreach($phrase in @($configuration.$key)){if($phrase -isnot [string] -or [string]::IsNullOrWhiteSpace($phrase) -or $phrase.Length -gt 60 -or $phrase -match '[\r\n\x00-\x1f]'){throw 'Invalid capture phrase.'}}
+    }
+  }
+  # capture-validation:end
   foreach($spec in @(@('invitationCooldownMinutes',1,1440),@('invitationTimeoutSeconds',5,60),@('returnIdleSeconds',30,3600))){if($configuration.PSObject.Properties.Name -contains $spec[0]){$n=0.0;if(-not [double]::TryParse([string]$configuration.($spec[0]),[ref]$n) -or $n -lt $spec[1] -or $n -gt $spec[2]){throw ('Invalid setting: '+$spec[0])}}}
   foreach($spec in @(@('minimumConfidence',0.3,0.95),@('endingMinimumConfidence',0.3,0.99),@('pollIntervalSeconds',1,30),@('notificationRate',-5,5),@('notificationVolume',0,100),@('announcementMaxChars',100,2000),@('announcementTimeoutSeconds',15,180),@('endSilenceMilliseconds',150,2500),@('ambiguousSilenceMilliseconds',150,3500))){
     $value=$configuration.($spec[0]);$number=0.0

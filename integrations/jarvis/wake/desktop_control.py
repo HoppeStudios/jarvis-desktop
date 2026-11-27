@@ -60,12 +60,20 @@ def queue_poll(root):
 
 def execute(client, request, root):
     operation = request.get('operation')
+    if operation == 'captured-task':
+        from captured_task import execute as captured_execute
+        return captured_execute(client, request, root, execute)
     if operation == 'poll':
         status = client.invoke('voice/status')
         try:
             status.update(queue_poll(root))
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
             status.update(pendingCount=0, queueError='Shared queue monitoring is unavailable.')
+        try:
+            from captured_task import poll as capture_poll
+            status['captureReports'] = capture_poll(client,root)
+        except (OSError,ValueError,RuntimeError):
+            status['captureError'] = 'Captured text task status is unavailable.'
         return status
     if operation == 'settings':
         return client.invoke('settings/openJarvis')
@@ -98,7 +106,7 @@ def main():
     client = None
     began = time.monotonic()
     try:
-        if args.request.stat().st_size > 4096:
+        if args.request.stat().st_size > 16384:
             raise ValueError('Oversized listener request.')
         request = json.loads(args.request.read_text(encoding='utf-8-sig'))
         client = Client()

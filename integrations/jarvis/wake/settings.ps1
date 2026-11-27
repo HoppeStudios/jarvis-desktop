@@ -6,6 +6,7 @@ Add-Type -AssemblyName System.Windows.Forms,System.Drawing,System.Speech
 Add-Type -Path (Join-Path $PSScriptRoot 'settings-form.cs') -ReferencedAssemblies @([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object {-not $_.IsDynamic -and $_.Location} | ForEach-Object {$_.Location} | Select-Object -Unique)
 . (Join-Path $PSScriptRoot 'configuration.ps1')
 . (Join-Path $PSScriptRoot 'commands.ps1')
+. (Join-Path $PSScriptRoot 'capture-settings.ps1')
 $before=[IO.File]::ReadAllText($SettingsPath)
 $configuration=Read-JarvisSettings $SettingsPath
 $form=New-Object JarvisPiSettingsForm
@@ -57,6 +58,7 @@ foreach($entry in @(@('wake','Zapnout hlas'),@('new-chat','Nový chat'),@('end',
   $value=if($configuration.commandOverrides.PSObject.Properties.Name -contains $entry[0]){$configuration.commandOverrides.($entry[0])}else{$script:JarvisCommands[$entry[0]]}
   Add-SettingsField $words $entry[0] ($entry[1]+': fráze za oslovením') (New-SettingsLines $value 75)
 }
+Add-JarvisCaptureSettingsFields
 $alerts=Add-SettingsTab 'Fronta a oznámení'
 $enabled=New-Object Windows.Forms.CheckBox;$enabled.Text='Automaticky oznamovat otázky a výsledky';$enabled.Checked=$configuration.notificationsEnabled;$enabled.AutoSize=$true
 Add-SettingsField $alerts 'notificationsEnabled' 'Automatická oznámení' $enabled
@@ -84,6 +86,7 @@ $save.Add_Click({
     $next.wakePhrases=@($fields.wakePhrases.Lines | ForEach-Object {$_.Trim()} | Where-Object {$_})
     $next.commandOverrides=[pscustomobject]@{}
     foreach($key in @('wake','new-chat','end','disable')){$next.commandOverrides | Add-Member -NotePropertyName $key -NotePropertyValue @($fields[$key].Lines | ForEach-Object {$_.Trim()} | Where-Object {$_} | Select-Object -Unique)}
+    Save-JarvisCaptureSettingsFields $next $fields
     Save-JarvisSettings $next $SettingsPath $before
     $script:settingsWindowSaved=$true
     if(-not $BuildOnly -and -not $NoApply){$null=& (Join-Path $appRoot 'control.ps1') -Action reload-settings}

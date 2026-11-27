@@ -53,7 +53,7 @@ foreach($owner in $owners){
 }
 $piRoot=Join-Path $root 'Pi';$wakeRoot=Join-Path $piRoot 'wake';$mcpRoot=Join-Path $piRoot 'mcp'
 New-Item -ItemType Directory -Path $wakeRoot,$mcpRoot -Force|Out-Null
-$files=@('commands.ps1','configuration.ps1','invitation.ps1','invitation-gate.ps1','listener-identity.ps1','desktop_control.py','desktop-launch.ps1','open-settings.ps1','presence.cs','powershell.ps1','settings.ps1','settings-form.cs','state.ps1')
+$files=@('capture.ps1','capture.mjs','captured_task.py','capture-settings.ps1','capture-settings-form.cs','commands.ps1','configuration.ps1','invitation.ps1','invitation-gate.ps1','listener-identity.ps1','desktop_control.py','desktop-launch.ps1','open-settings.ps1','presence.cs','powershell.ps1','settings.ps1','settings-form.cs','state.ps1')
 foreach($name in $files){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $wakeRoot $name) -Force}
 Copy-Item -LiteralPath (Join-Path $source 'mcp\stdio.py') -Destination (Join-Path $mcpRoot 'stdio.py') -Force
 foreach($name in @('wake.ps1','control.ps1','launch.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $root $name) -Force}
