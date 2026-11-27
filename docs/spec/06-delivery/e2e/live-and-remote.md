@@ -15,6 +15,9 @@
   and a small typo. Repeat with duplicate titles, project filter and archived chat.
   Open only the actual chosen ID. Try invalid queries and explicit environment
   disable. Use a filtered Windows read and a supported bounded batch on a fixture.
+  Repeat with original Codex and imported Pi history sharing a title; explicit
+  owner=codex selects only the native original, while the unscoped lookup keeps
+  distinct exact-name records ambiguous.
 - **Expected:** One metadata inventory call, bounded candidates and explicit
   ambiguity; no transcripts, duplicate chat, message, call mutation or false live
   status. Explicit startup disable wins. Existing authentication, profiles, account,

@@ -13,6 +13,15 @@ navigation, live status, task execution or call mutation is included. Archived
 history is opt-in and current sidebar archive preferences remain authoritative.
 Ambiguous matches are explicit. A caller opens a chosen ID through the existing
 session/open action, preserving its normal owner and renderer synchronization.
+An explicit Codex owner scope filters through the existing native ID parser;
+imported Pi history is not assumed to be the original based on a matching title
+or project path. Reordered complete title terms are equivalent. Extra unrelated
+title words are penalized for approximate matches; genuine alternatives remain
+ambiguous. No title-based history merging or deletion occurs.
+
+The concurrent installed persistent-control fix (04bc02f18) is preserved, including
+its startup policy, diagnostics and tests; this integration reuses that policy
+rather than maintaining a second startup implementation.
 
 Ordinary executable launches previously omitted the environment-only MCP startup
 flag and left Jarvis's authenticated endpoint inactive. Persisted explicit Jarvis
