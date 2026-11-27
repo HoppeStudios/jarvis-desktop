@@ -73,7 +73,7 @@ function Voice-Request([string]$action,[string]$reply,[bool]$automatic=$false,[s
  return $request
 }
 function Invoke-CommandAction([string]$action,[string]$reply,[string]$source="control"){
- $script:invitation=$null;$script:lastAction=$action;$script:lastCommandSource=$source;$script:processed++
+ if($action -ne 'reload-settings'){$script:invitation=$null};$script:lastAction=$action;$script:lastCommandSource=$source;$script:processed++
  if($action -eq 'resume'){Set-Paused $false;if($reply){Write-JsonAtomic $reply @{ok=$true;action=$action;state='listening'}};return}
  if($action -eq 'reload-settings'){
   $previous=$settings;$script:settings=Read-JarvisSettings (Join-Path $appRoot 'settings.json')
