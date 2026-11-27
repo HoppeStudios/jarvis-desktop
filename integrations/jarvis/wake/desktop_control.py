@@ -62,12 +62,19 @@ def queue_poll(root):
     if not node.is_file() or not cli.is_file():
         raise RuntimeError('The existing shared Jarvis queue runtime is unavailable.')
     creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-    done = subprocess.run([str(node), '--disable-warning=ExperimentalWarning', str(cli), 'tick'],
+    poll = Path(__file__).with_name('queue-poll.mjs')
+    if not poll.is_file():
+        raise RuntimeError('Bounded queue poll adapter is unavailable.')
+    done = subprocess.run([str(node), '--disable-warning=ExperimentalWarning', str(poll), str(root)],
                           capture_output=True, timeout=8, creationflags=creationflags, check=True)
     if len(done.stdout) > 2*1024*1024:
         raise RuntimeError('Shared queue response exceeds the local limit.')
     packet = json.loads(done.stdout)
-    return {'pendingCount':len(packet.get('pending', [])), 'lastInvitation':packet.get('lastInvitation'),
+    count, fingerprint = packet.get('pendingCount'), packet.get('pendingFingerprint')
+    if (not isinstance(count, int) or count < 0 or (count and
+            (not isinstance(fingerprint,str) or len(fingerprint)!=64 or any(c not in '0123456789abcdef' for c in fingerprint)))):
+        raise RuntimeError('Queue identity is unconfirmed.')
+    return {'pendingCount':count, 'pendingFingerprint':fingerprint, 'lastInvitation':packet.get('lastInvitation'),
             'monitor':packet.get('monitor')}
 
 

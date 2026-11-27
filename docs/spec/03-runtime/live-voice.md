@@ -295,6 +295,31 @@ anything. Presence and ambiguous replies remain non-answers.
 
 ## Phone input and request-scoped cancellation
 
+### Jarvis briefing and interruption reliability
+
+Automatic invitations retain the normal cooldown and notification eligibility,
+but an unchanged due queue fingerprint is offered only once. The fingerprint
+covers all due pending pages, not only the Inbox's first 100 notification rows.
+Ending a call suppresses another invitation for the same observed queue state;
+new items/revisions remain eligible. Manual activation still reads unresolved
+items. No item is acknowledged, deleted or expired by this suppression.
+
+Host saves the selected cursor with its actual revision before returning ready
+startup context. Save/read failure blocks an automatic presence call. A ready
+briefing asks the actual unresolved question directly instead of requiring a
+worker prelude; worker delegation remains for real human replies. Startup context
+retains saved partial answers so already-delivered information is not requested
+again. A context send receipt alone does not prove speech or human hearing.
+
+Codex Live has no VAD tuning contract here. Its WebRTC microphone instead uses a
+call-owned local worklet during assistant playback: transient sounds are withheld
+until 240 ms of candidate speech includes 160 ms above the local energy threshold.
+Admitted speech retains its buffered onset and tail; ordinary input outside
+assistant playback is immediate. Native mute and release close both original
+and processed tracks and discard buffered audio. External wake/end controls and
+the selected physical device/account/voice are unchanged. Synthetic signal and
+controller tests are distinct from hardware listening acceptance.
+
 Authenticated `voice/control` start accepts optional `input` with
 `{kind:"virtual-cable",label:string}`. Main validates the bounded exact selector
 and passes it to its real renderer. Only one exact non-default audio capture

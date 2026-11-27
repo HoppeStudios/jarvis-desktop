@@ -9,6 +9,16 @@ const { queueStartupContext, loadJarvisQueueContext, QUEUE_CONTEXT_UNAVAILABLE }
 const { createLiveWorkProfile } = await import("../electron/main/live-voice/work-profile.ts");
 const item=(id,question="Actual question?")=>({id,threadId:"codex-id",hostId:"local",state:"pending",kind:"question",revision:2,deferredUntil:0,questions:[{id:"q0",question,options:["First","Second"],answered:false}]});
 
+test("startup preserves real partial progress and saves the selected cursor before reporting ready",async()=>{
+ const actual=item('partial');actual.questions[0].draftAnswer='Android 13 was already delivered; Tailscale remains unknown.';
+ const saved=[];const options={enabled:true,signal:new AbortController().signal,cancel:()=>{},read:async()=>({items:[actual],total:1,nextOffset:null}),saveCursor:async selection=>{saved.push(selection);return{saved:true};}};
+ const result=await loadJarvisQueueContext(options);
+ assert.deepEqual(saved,[{id:'partial',expectedRevision:2,questionId:'q0'}]);
+ assert.match(result,/Android 13 was already delivered/);
+ assert.equal(await loadJarvisQueueContext({...options,saveCursor:async()=>({isError:true})}),QUEUE_CONTEXT_UNAVAILABLE);
+ assert.equal(await loadJarvisQueueContext({...options,saveCursor:async()=>({saved:false})}),QUEUE_CONTEXT_UNAVAILABLE);
+});
+
 test("initial context resumes the due cursor and keeps only one actual unresolved question",()=>{
  const first=item("first");first.questions[0].answered=true;
  const later=item("deferred");later.deferredUntil=1000;

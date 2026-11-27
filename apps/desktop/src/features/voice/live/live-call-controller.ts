@@ -26,6 +26,7 @@ import { CodexTranscriptAssembler } from "./codex-transcript";
 import { sendJarvisSessionContext } from "./jarvis-session-context";
 import { requestCallMicrophone } from "./call-input";
 import { resultBriefingMessage, matchesResultBriefing } from "./result-briefing";
+import { InterruptionGuard } from "./interruption-guard";
 
 export type LiveVoiceSnapshot = {
   status: LiveStatus | null;
@@ -53,6 +54,7 @@ type StartResources = {
   microphoneRequestSettled?: boolean;
   stream?: MediaStream;
   streamStopped?: boolean;
+  interruptionGuard?: InterruptionGuard;
   context?: AudioContext;
   port?: MessagePort;
   pcm?: LivePcmSession;
@@ -346,10 +348,12 @@ export class LiveCallController {
     try {
       if (resources.pcm) resources.pcm.applyGate(muted, captureEpoch);
       else for (const track of resources.stream?.getAudioTracks() ?? []) track.enabled = !muted;
+      resources.interruptionGuard?.setMuted(muted);
       const updated = await liveVoiceApi.setMuted({ callId: call.callId, muted, captureEpoch });
       this.patch({ call: updated });
     } catch (error) {
       for (const track of resources.stream?.getAudioTracks() ?? []) track.enabled = false;
+      resources.interruptionGuard?.setMuted(true);
       resources.pcm?.applyGate(true, captureEpoch + 1);
       this.patch({ call: { ...call, muted: true }, errorCode: errorCode(error) });
       await this.failActive(call.callId, error);
@@ -413,9 +417,15 @@ export class LiveCallController {
     peer.onconnectionstatechange = () => {
       if (peer.connectionState === "failed" && !resources.abort.signal.aborted) void this.failActive(callId, liveError("LIVE_NETWORK_ERROR"));
     };
-    for (const track of stream.getAudioTracks()) {
+    for (const track of stream.getAudioTracks()) track.enabled = false;
+    if (!resources.context) throw liveError("LIVE_MEDIA_UNSUPPORTED");
+    const guard = await InterruptionGuard.create(resources.context,stream,()=>void this.failActive(callId,liveError("LIVE_MEDIA_UNSUPPORTED")));
+    if (resources.abort.signal.aborted || resources.streamStopped) {guard.dispose();throw liveError("LIVE_STALE_CALL");}
+    resources.interruptionGuard = guard;
+    const protectedStream = resources.interruptionGuard.stream;
+    for (const track of protectedStream.getAudioTracks()) {
       track.enabled = false;
-      peer.addTrack(track, stream);
+      peer.addTrack(track, protectedStream);
     }
     peer.ontrack = (event) => {
       const audio = document.createElement("audio");
@@ -479,6 +489,7 @@ export class LiveCallController {
             }
             break;
           case "activity":
+            if (typeof event.assistantSpeaking === "boolean") resources.interruptionGuard?.setSpeaking(event.assistantSpeaking);
             if (event.userSpeaking === true) noteSessionCleanupUserPresence(this.snapshot.call?.workBinding?.workSessionId);
             void liveVoiceApi.reportMedia({ callId, kind: "activity", userSpeaking: event.userSpeaking, assistantSpeaking: event.assistantSpeaking }).catch((error) => this.failActive(callId, error));
             break;
@@ -513,6 +524,7 @@ export class LiveCallController {
     const generation = resources.playbackMonitorGeneration;
     const current = () => !resources.abort.signal.aborted && generation === resources.playbackMonitorGeneration;
     const report = (active: boolean) => {
+      resources.interruptionGuard?.setSpeaking(active);
       if (!current() || resources.playbackActive === active) return;
       resources.playbackActive = active;
       void liveVoiceApi.reportMedia({ callId, kind: "playback-activity", active, ready: true }).catch(() => undefined);
@@ -823,11 +835,13 @@ export class LiveCallController {
   }
 
   private stopCapture(resources: StartResources): boolean {
-    if (resources.streamStopped || !resources.stream) return true;
+    let released = true;
+    try { resources.interruptionGuard?.dispose(); } catch { released = false; }
+    if (resources.streamStopped || !resources.stream) return released;
     try {
       stopStream(resources.stream);
       resources.streamStopped = true;
-      return true;
+      return released;
     } catch {
       return false;
     }
