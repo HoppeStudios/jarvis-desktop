@@ -9,12 +9,16 @@ function New-Recognizer {return [IO.MemoryStream]::new()}
 function Reset-JarvisAudioInput {}
 function Update-JarvisAudioInput {}
 function Register-Speech {}
+function Stop-JarvisCapturedSpeech([string]$action) {return $action}
+function Persist {$script:persistCount++}
 function Voice-Request {return @{state='fixture'}}
 $appRoot=$PSScriptRoot;$persistent=@{lastInvitation=0};$script:settings=@{};$script:processed=0;$script:paused=$true
 $script:recognizer=[IO.MemoryStream]::new()
+$script:queueFingerprint='queue-state-a';$script:persistCount=0
 $original=@{callId='owned-invitation';deadline=1234};$script:invitation=$original
 Invoke-CommandAction 'reload-settings' $null
 if(-not [object]::ReferenceEquals($original,$script:invitation)){throw 'Settings reload lost the live invitation timer'}
 Invoke-CommandAction 'end' $null
 if($null -ne $script:invitation){throw 'Explicit End must clear the invitation'}
+if($persistent.lastInvitedFingerprint -cne 'queue-state-a' -or $script:persistCount -ne 1){throw 'Explicit End must suppress an unchanged backlog persistently'}
 'Settings reload preserves the invitation; explicit End cancels it.'

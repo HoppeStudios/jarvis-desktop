@@ -1,0 +1,6 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {pendingFingerprint} from '../../../integrations/jarvis/wake/queue-poll.mjs';
+const item=(id,revision=1)=>({id,revision,state:'pending',created:1000,questions:[{answered:false}]});
+test('all pending pages contribute and order never causes a repeated invitation',()=>{const items=Array.from({length:260},(_,i)=>item('item-'+i));const a=pendingFingerprint(items,10000);assert.equal(a.pendingCount,260);assert.equal(a.pendingFingerprint,pendingFingerprint([...items].reverse(),10000).pendingFingerprint);const changed=items.map((i,n)=>n===259?{...i,revision:2}:i);assert.notEqual(a.pendingFingerprint,pendingFingerprint(changed,10000).pendingFingerprint);});
+test('closed, deferred, settled and too-new items do not change the invitation identity',()=>{const a=item('a');const first=pendingFingerprint([a],10000);for(const ignored of [{...item('ignored'),state:'forwarded'},{...item('ignored'),deferredUntil:20000},{...item('ignored'),created:9990},{...item('ignored'),questions:[{answered:true}]}])assert.deepEqual(first,pendingFingerprint([a,ignored],10000));assert.equal(pendingFingerprint([],10000).pendingFingerprint,null);});

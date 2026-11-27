@@ -531,6 +531,9 @@ export class LiveCallService {
         : undefined;
       this.assertCurrent(slot);
       slot.jarvisQueueContext = jarvisQueueContinuation(startupContext);
+      if (slot.awaitHumanBeforeWork && slot.jarvisQueueContext?.state === "unavailable") {
+        throw liveError("LIVE_QUEUE_UNAVAILABLE");
+      }
       const context: LiveAdapterContext = {
         callId: slot.callId,
         binding: slot.binding,

@@ -16,6 +16,18 @@ class FakeClient:
 
 
 class WakeWorkerTests(unittest.TestCase):
+    def test_queue_poll_validates_private_free_identity_metadata(self):
+        import json
+        from types import SimpleNamespace
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as directory:
+            root=Path(directory);(root/'Inbox').mkdir();(root/'Inbox/cli.mjs').touch()
+            node=root/'node.exe';node.touch();(root/'inbox-runtime.json').write_text(json.dumps({'node':str(node)}))
+            with patch.object(worker.subprocess,'run',return_value=SimpleNamespace(stdout=json.dumps({'pendingCount':260,'pendingFingerprint':'a'*64}).encode())):
+                self.assertEqual(worker.queue_poll(root)['pendingCount'],260)
+            with patch.object(worker.subprocess,'run',return_value=SimpleNamespace(stdout=b'{"pendingCount":2,"pendingFingerprint":"unknown"}')):
+                with self.assertRaises(RuntimeError):worker.queue_poll(root)
+
     def test_inactive_endpoint_is_specific_and_never_attempts_transport(self):
         with patch.object(Path,'read_text',return_value='{"active":false,"token":"secret-do-not-echo"}'), patch.object(worker,'transport') as transport:
             with self.assertRaises(worker.ControlUnavailable) as raised:worker.Client()

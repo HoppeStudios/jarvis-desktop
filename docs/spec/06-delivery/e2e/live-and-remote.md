@@ -3,6 +3,23 @@
 > Part of the [E2E test plan](../04-e2e-test-plan.md). Live Voice, Live Work, speech, and Remote Agent Control.
 > Scenario template, gates, and traceability live in the plan.
 
+## E2E-JARVIS-briefing-reliability
+
+- **Preconditions:** Opted-in Jarvis, due persistent items, healthy native queue
+  operations and no unrelated call. Existing voice/account/device are preserved.
+- **Steps:** Invite for one queue state, end it, poll unchanged state again,
+  update a pending item after the cooldown, acknowledge presence and listen.
+- **Expected:** The unchanged state does not reopen voice. A new eligible state
+  may invite once. Cursor save succeeds before ready startup context; after
+  presence the actual question is asked without a worker prelude, retaining
+  partial answers. Failed queue readiness prevents an automatic call.
+- **Audio acceptance:** During assistant playback a transient sound does not
+  interrupt; sustained speech is admitted with its onset/tail. Ordinary idle
+  input remains immediate. Mute/cancel releases both capture streams and buffers.
+- **Automation:** Queue pages/identity/cursor tests, invitation lifecycle,
+  synthetic worklet signals, renderer/Main path and late-creation cancellation.
+  Hardware listening and human speech are separate installed acceptance checks.
+
 ## E2E-JARVIS-native-computer-interface
 
 - **Status:** Installed native API/UI acceptance passed; natural microphone

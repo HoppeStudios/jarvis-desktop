@@ -13,9 +13,9 @@ export function jarvisQueueContinuation(context: string | undefined): { content:
   const ready = snapshot?.state === "ready" && object(snapshot.item) !== null;
   const item = ready ? snapshot!.item : undefined;
   const question = object(item?.question);
-  const intro = "Host Jarvis briefing, not a human message or answer. Presence is not an answer. In the user's language, brief this one pending item. Delegate only actual replies/acknowledgements using the queue skill; never choose for the human.";
+  const intro = "Host Jarvis briefing, not a human message or answer. Ask the unresolved parts of this actual question and its choices in the user's language, then wait. Respect saved partial progress in the startup snapshot. No greeting or delegation before asking. Never invent an answer.";
   let content = intro + "\n" + (question && typeof question.text === "string"
-    ? (item.kind === "question" ? "Question: " : "Report: ") + question.text +
+    ? (item.kind === "question" ? "Question JSON: " : "Read this report, then ask whether to continue. Report JSON: ") + JSON.stringify(question.text) +
       (Array.isArray(question.options) && question.options.length ? "\nChoices: " + JSON.stringify(question.options) : "")
     : "Use the work function to fetch the real persistent queue, then brief one item. Queue access is not yet confirmed.");
   // Keep native speakable content small. Complete source identity stays in Main,
@@ -63,7 +63,8 @@ export function queueStartupContext(raw: unknown, now = Date.now()): string {
         kind: short(item.origin.kind), sessionId: short(item.origin.sessionId),
         threadId: short(item.origin.threadId), hostId: short(item.origin.hostId),
       } : { kind: "codex", threadId: short(item.threadId), hostId: short(item.hostId) },
-      question: { id: q.id, text: q.question, options: q.options },
+      question: { id: q.id, text: q.question, options: q.options,
+        ...(typeof q.draftAnswer === "string" ? { savedPartialAnswer: q.draftAnswer } : {}) },
     };
   }
   const snapshot = { state: "ready", totalPending: page.total, dueOnThisPage: due.length,
@@ -78,6 +79,7 @@ export async function loadJarvisQueueContext(input: {
   enabled: boolean;
   signal: AbortSignal;
   read: (signal: AbortSignal, offset: number) => Promise<unknown>;
+  saveCursor?: (selection: { id: string; expectedRevision: number; questionId: string }, signal: AbortSignal) => Promise<unknown>;
   cancel: () => void;
   timeoutMs?: number;
 }): Promise<string | undefined> {
@@ -107,7 +109,21 @@ export async function loadJarvisQueueContext(input: {
           items.set(item.id, item);
         }
         if (page.nextOffset === null || page.nextOffset === undefined) {
-          return { ...first, total: page.total, items: [...items.values()], nextOffset: null };
+          const raw = { ...first, total: page.total, items: [...items.values()], nextOffset: null };
+          const context = queueStartupContext(raw);
+          if (input.saveCursor && context !== QUEUE_CONTEXT_UNAVAILABLE) {
+            const snapshot = object(JSON.parse(context.slice(context.indexOf("\n") + 1)));
+            if (snapshot?.state === "ready" && snapshot.item) {
+              const selected = snapshot.item;
+              const saved = await input.saveCursor({id:selected.id,expectedRevision:selected.revision,questionId:selected.question.id},bounded.signal);
+              const result = object(saved);
+              if (result?.isError) throw new Error("Queue cursor save rejected");
+              const value = object(result?.structuredContent) ?? (Array.isArray(result?.content)
+                ? object(JSON.parse(result.content.find((entry:any)=>entry.type === "text")?.text ?? "null")) : result);
+              if (value?.saved !== true) throw new Error("Queue cursor save unconfirmed");
+            }
+          }
+          return raw;
         }
         if (!Number.isSafeInteger(page.nextOffset) || page.nextOffset <= offset || !page.items.length) {
           throw new Error("Invalid queue pagination");

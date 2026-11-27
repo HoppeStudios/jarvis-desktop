@@ -7,6 +7,7 @@ test("renderer and Main complete a Codex Live user path without invoking an Agen
   const originalWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
   const originalNavigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   const originalAudioContextDescriptor = Object.getOwnPropertyDescriptor(globalThis, "AudioContext");
+  const originalWorklet = Object.getOwnPropertyDescriptor(globalThis,"AudioWorkletNode");
   const listeners = new Map();
   const sentDataChannelMessages = [];
   const tracks = [{ enabled: true, stopped: false, stop() { this.stopped = true; } }];
@@ -73,10 +74,14 @@ test("renderer and Main complete a Codex Live user path without invoking an Agen
   class FakeAudioContext {
     state = "running";
     sampleRate = 48_000;
+    audioWorklet = {addModule:async()=>{}};
+    createMediaStreamSource(){return{connect(){},disconnect(){}};}
+    createMediaStreamDestination(){const track={enabled:false,stop(){}};return{stream:{getAudioTracks:()=>[track],getTracks:()=>[track]},disconnect(){}};}
     async resume() {}
     async close() { this.state = "closed"; }
   }
   Object.defineProperty(globalThis, "AudioContext", { configurable: true, value: FakeAudioContext });
+  Object.defineProperty(globalThis,"AudioWorkletNode",{configurable:true,value:class{port={postMessage(){}};connect(){}disconnect(){}}});
   const peerInstances = [];
   class FakeDataChannel {
     readyState = "open";
@@ -112,6 +117,7 @@ test("renderer and Main complete a Codex Live user path without invoking an Agen
     else delete globalThis.navigator;
     if (originalAudioContextDescriptor) Object.defineProperty(globalThis, "AudioContext", originalAudioContextDescriptor);
     else delete globalThis.AudioContext;
+    if(originalWorklet)Object.defineProperty(globalThis,"AudioWorkletNode",originalWorklet);else delete globalThis.AudioWorkletNode;
     if (originalPeer === undefined) delete globalThis.RTCPeerConnection;
     else globalThis.RTCPeerConnection = originalPeer;
   });
@@ -185,6 +191,27 @@ test("renderer and Main complete a Codex Live user path without invoking an Agen
     assert.equal(sentViews.at(-1).phase, "ended");
     assert.equal(controller.getSnapshot().transcripts.length, 1);
     assert.doesNotMatch(JSON.stringify(controller.getSnapshot()), /opaque-test-token/);
+    const {InterruptionGuard}=await server.ssrLoadModule('/src/features/voice/live/interruption-guard.ts');
+    await t.test('repeated quiet reports release the assistant guard instead of extending its timer forever',async child=>{
+      child.mock.timers.enable({apis:['setTimeout']});
+      const messages=[];const guard=new InterruptionGuard({disconnect(){}},{port:{postMessage:value=>messages.push(value)},disconnect(){}},{stream:{getAudioTracks:()=>[],getTracks:()=>[]},disconnect(){}});
+      guard.setSpeaking(true);
+      for(let i=0;i<8;i++){guard.setSpeaking(false);child.mock.timers.tick(40);}
+      assert.deepEqual(messages.filter(m=>m.kind==='speaking').map(m=>m.active),[true,false]);
+      guard.dispose();child.mock.timers.reset();
+    });
+    await t.test('cancellation during delayed guard creation disposes the late processed stream',async()=>{
+      const originalCreate=InterruptionGuard.create;let release,started;
+      const entered=new Promise(resolve=>started=resolve);let disposed=0;
+      InterruptionGuard.create=async()=>{started();return new Promise(resolve=>release=resolve);};
+      try{
+        const pending=controller.start();await entered;
+        const ending=controller.end();
+        release({dispose(){disposed++;},stream:{getAudioTracks:()=>[],getTracks:()=>[]}});
+        await assert.rejects(pending);await ending;
+        assert.equal(disposed,1);assert.equal(controller.getSnapshot().stopping,false);
+      }finally{InterruptionGuard.create=originalCreate;}
+    });
   } finally {
     if (controller) await controller.end().catch(() => undefined);
   }

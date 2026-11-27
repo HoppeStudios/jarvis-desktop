@@ -93,6 +93,7 @@ function Invoke-CommandAction([string]$action,[string]$reply,[string]$source="co
  if($action -eq 'toggle' -and $settings.activationBehavior -eq 'wake'){$action='wake'}
  if($action -eq 'toggle'){$script:desired=-not $script:desired;$action=if($script:desired){'wake'}else{'end'}}
  else{$script:desired=$action -ne 'end'}
+ if($action -eq 'end' -and $script:queueFingerprint){$persistent.lastInvitedFingerprint=$script:queueFingerprint;Persist}
  $null=Voice-Request $action $reply
 }
 function Register-Speech {
@@ -146,7 +147,7 @@ try {
     }
    }elseif($job.request.operation -eq 'poll'){
     if($response.ok){
-     $packet=$response.result;$script:call=$packet.call;Update-JarvisCapturedSpeech $packet;$lastStatusResult=$now.ToString('o');$script:monitor=$packet.monitor;$script:queueError=$packet.queueError
+     $packet=$response.result;$script:call=$packet.call;Update-JarvisCapturedSpeech $packet;$lastStatusResult=$now.ToString('o');$script:monitor=$packet.monitor;$script:queueError=$packet.queueError;$script:queueFingerprint=$packet.pendingFingerprint
      $voiceJobs=@($jobs|Where-Object {$_.request.operation -in @('voice','captured-task','transcribe')}).Count
      $active=$packet.pendingRequestId -or ($packet.call -and $packet.call.phase -notin @('ended','failed')) -or (Test-JarvisCapturedSpeechActive)
      if($job.request.sequence -eq $persistent.intentSequence -and $voiceJobs -eq 0 -and (-not $script:invitation -or $job.started -gt [datetime]$script:invitation.verifyAfter)){$script:desired=[bool]$active}
@@ -162,8 +163,8 @@ try {
       }
      }else{
       $last=[Math]::Max([double]$persistent.lastInvitation,[double]$packet.lastInvitation)
-      $script:invitationBlockedReason=Get-JarvisInvitationBlockReason @{paused=$script:paused;enabled=$settings.notificationsEnabled;active=[bool]$active;pendingWorkers=$voiceJobs;pendingCount=$packet.pendingCount;nowMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();lastInvitation=$last;cooldownMs=([double]$settings.invitationCooldownMinutes*60000);unlocked=[JarvisPiPresence]::Unlocked();idleSeconds=[JarvisPiPresence]::IdleSeconds();returnIdleSeconds=[double]$settings.returnIdleSeconds}
-      if(-not $script:invitationBlockedReason){$persistent.lastInvitation=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();Persist;$script:desired=$true;Voice-Request 'wake' $null $true}
+      $script:invitationBlockedReason=Get-JarvisInvitationBlockReason @{paused=$script:paused;enabled=$settings.notificationsEnabled;active=[bool]$active;pendingWorkers=$voiceJobs;pendingCount=$packet.pendingCount;pendingFingerprint=$packet.pendingFingerprint;lastInvitedFingerprint=$persistent.lastInvitedFingerprint;nowMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();lastInvitation=$last;cooldownMs=([double]$settings.invitationCooldownMinutes*60000);unlocked=[JarvisPiPresence]::Unlocked();idleSeconds=[JarvisPiPresence]::IdleSeconds();returnIdleSeconds=[double]$settings.returnIdleSeconds}
+      if(-not $script:invitationBlockedReason){$persistent.lastInvitedFingerprint=$packet.pendingFingerprint;$persistent.lastInvitation=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();Persist;$script:desired=$true;Voice-Request 'wake' $null $true}
      }
     }else{$script:queueError=$response.error}
    }elseif(-not $response.ok){Show-Error $response.error}

@@ -116,6 +116,7 @@ export function createLiveCallService(input: {
     loadWorkStartupContext: async ({ callId, signal }) => {
       const scope = `jarvis-live-startup:${callId}`;
       let queueToolName: string | undefined;
+      let cursorToolName: string | undefined;
       return loadJarvisQueueContext({
         enabled: latestSettings?.jarvisEnabled === true && latestSettings?.jarvisQueueEnabled === true,
         signal,
@@ -126,10 +127,15 @@ export function createLiveCallService(input: {
             await input.refreshUserMcp(null);
             const tools = await input.userMcp.toolsForProject(null, "Jarvis-Inbox");
             queueToolName = tools.find((entry) => entry.serverId === "Jarvis-Inbox" && entry.toolName === "review_queue")?.fullName;
+            cursorToolName = tools.find((entry) => entry.serverId === "Jarvis-Inbox" && entry.toolName === "save_cursor")?.fullName;
           }
           if (readSignal.aborted) throw new Error("Live startup cancelled");
           if (!queueToolName) throw new Error("Queue read tool unavailable");
           return input.userMcp.callTool(queueToolName, { limit: 100, offset }, null, scope);
+        },
+        saveCursor: async (selection, saveSignal) => {
+          if (saveSignal.aborted || !cursorToolName || !input.userMcp) throw new Error("Queue cursor save unavailable");
+          return input.userMcp.callTool(cursorToolName, selection, null, scope);
         },
       });
     },
