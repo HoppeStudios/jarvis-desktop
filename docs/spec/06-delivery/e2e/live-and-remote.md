@@ -1,5 +1,20 @@
 # E2E Scenarios: Live Sessions and Remote Control
 
+## E2E-JARVIS-workspace-chat-create
+
+- Submit an actual new-chat request through native Live delegation into a bound
+  coordinator. Verify the full original workspace/title/constraints reach normal
+  AgentHost admission once, including a duplicate provider receipt.
+- With busy work, verify independent creation queues without steering/stopping
+  that work. With no bound Agent, retain project choices without inventing a target.
+- In the installed client, resolve a registered project and create a labeled
+  disposable empty chat through native MCP. Read it back and verify its real ID,
+  project path and empty transcript, then delete only that fixture. Preserve the
+  current call/account/voice and global project selection throughout.
+- Automated production composition tests use real WorkBridge/Coordinator/AgentHost
+  wiring with only classifier and external RPC/model edges simulated. Installed
+  native creation/readback is separate from a human microphone acceptance test.
+
 > Part of the [E2E test plan](../04-e2e-test-plan.md). Live Voice, Live Work, speech, and Remote Agent Control.
 > Scenario template, gates, and traceability live in the plan.
 

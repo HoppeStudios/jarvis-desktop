@@ -2,6 +2,14 @@
 
 Status: Implementation candidate
 
+Explicit workspace chat creation is work for the connected coordinator Agent,
+which already has the native project/session MCP operations. A bound Live
+`create-session` classification follows normal independent-task admission with
+the complete original request, duplicate-receipt protection and busy-task queue.
+It no longer terminates as a panel-only choice. Unbound Live keeps the existing
+registered-project selection flow. Creation does not retarget the current call,
+start another call, grant permissions or submit a new task to the created chat.
+
 ## Decision
 
 Reuse the reviewed native Pi control plane, PC-Control and dedicated Firefox /
