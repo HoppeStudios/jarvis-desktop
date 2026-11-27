@@ -1,6 +1,7 @@
 param([Parameter(Mandatory)][string]$RuntimeConfig,[string]$RootPath=(Join-Path $env:LOCALAPPDATA 'JarvisWake'),[switch]$ValidateOnly)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'capture-integration.ps1')
+. (Join-Path $PSScriptRoot 'control-diagnostics-install.ps1')
 . (Join-Path $PSScriptRoot 'state.ps1')
 . (Join-Path $PSScriptRoot 'listener-identity.ps1')
 . (Join-Path $PSScriptRoot 'configuration.ps1')
@@ -46,6 +47,7 @@ foreach($entry in @(@('wake.ps1','wake.ps1'),@('configuration.ps1','Pi/wake/conf
  if($entry[0] -eq 'desktop_control.py' -and -not $text.Contains("request.get('capturedResultRequestId')")){
   $text=Replace-One $text "    payload = {key:request[key] for key in ('requestId', 'action', 'intentId', 'intentSequence')}" "    if request.get('capturedResultRequestId'):`n        if action!='wake':raise ValueError('Invalid result action.')`n        from captured_task import brief`n        return brief(client,request,root)`n    payload = {key:request[key] for key in ('requestId', 'action', 'intentId', 'intentSequence')}"
  }
+ if($entry[0] -eq 'desktop_control.py'){$text=Add-JarvisControlDiagnostics $text}
  $patches[$path]=$text
 }
 $settingsPath=Join-Path $root 'settings.json';$settingsBefore=[IO.File]::ReadAllText($settingsPath)

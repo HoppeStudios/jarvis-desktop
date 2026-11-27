@@ -3,6 +3,23 @@
 > Part of the [E2E test plan](../04-e2e-test-plan.md). Live Voice, Live Work, speech, and Remote Agent Control.
 > Scenario template, gates, and traceability live in the plan.
 
+## E2E-JARVIS-persistent-local-control
+
+- **Preconditions:** Installed reviewed Pi build, persisted Jarvis enabled, no
+  explicit MCP launch override, idle app with real drafts/work preserved.
+- **Steps:** Launch Pi through its ordinary executable rather than the Jarvis
+  wrapper. Read the new private endpoint metadata and use the pinned authenticated
+  worker for status. Restart again without the launcher flag. Repeat in a private
+  fixture with Jarvis disabled, unreadable settings, and explicit `0`/`1` overrides.
+- **Expected:** Enabled Jarvis reconnects after ordinary launches; explicit
+  disable and default-off behavior remain. Authentication and existing operation
+  confirmations remain enforced. Inactive/missing endpoints yield distinct fixed
+  helper diagnostics without exposing tokens or blaming the shared queue. Busy or
+  unknown calls/work defer installation rather than being stopped to repair MCP.
+- **Automation:** Local-control opt-in/server integration, MCP wiring/auth tests
+  and Python worker diagnostics tests. Installed ordinary-launch status is a
+  separate check; it never starts a test voice call.
+
 ## E2E-1176: Complete addressed command with native voice preservation
 
 - **Status:** Draft; deterministic and installed file/text slices verified,
