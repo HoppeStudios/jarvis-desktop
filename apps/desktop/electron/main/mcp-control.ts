@@ -7,6 +7,7 @@ import { SESSION_COLLABORATION_OPERATIONS } from "./session-collaboration-contro
 import { markAutomationRequest } from "./runtime/user-message-provenance";
 import { validateGeneralSettingsPatch } from "./general-settings";
 import { sessionListQuery, sessionListPage } from "./mcp-session-page";
+import { sessionFindQuery, findSessionMetadata } from "./mcp-session-find";
 
 /** A small JSON Schema subset used by MCP's tools/list response. */
 export type McpJsonSchema = {
@@ -313,6 +314,7 @@ const CORE_TOOL_SPECS = [
   ),
   coreTool("pi_project_clear", "Clear the active project workspace.", objectSchema({}), "project/clear", () => []),
   coreTool("pi_session_list", "List sessions in bounded pages; archived chats require includeArchived=true.", objectSchema({ includeArchived: { type: "boolean" }, offset: { type: "integer" }, limit: { type: "integer" }, search: { type: "string" } }), "session/list", input => [input]),
+  coreTool("pi_session_find", "Find existing chats by approximate spoken title in one native metadata read. Optional owner=codex selects original native Codex chats rather than imported Pi history. Returns ambiguity without navigation or voice transfer.", objectSchema({ query: stringSchema(), includeArchived: { type: "boolean" }, project: stringSchema(), limit: { type: "integer" }, owner: { type: "string", enum: ["codex"] } }, ["query"]), "session/find", input => [input]),
   coreTool(
     "pi_session_create",
     "Create a durable session, optionally bound to a project and model.",
@@ -794,6 +796,8 @@ export function createMcpControlController(options: {
   ) => void | Promise<void>;
 }): McpControlController {
   const operations = [...createMcpControlOperations(options.channels),
+    ...(options.channels.sessionList ? [{ id: "session/find", channel: "internal:session-find", risk: "read" as const,
+      description: "Find approximate chat titles across one native metadata inventory, without paging, transcripts, navigation or live-status claims.", argumentShape: ["query"] }] : []),
     ...(options.invokeSessionCollaboration ? SESSION_COLLABORATION_OPERATIONS : [])];
   const operationById = new Map(operations.map((operation) => [operation.id, operation]));
   return {
@@ -825,6 +829,11 @@ export function createMcpControlController(options: {
         validateGeneralSettingsPatch(args[0]);
       }
       const sanitized = args.map((value) => stripSecretMaterial(value)) as unknown[];
+      if (operation.id === "session/find") {
+        const query = sessionFindQuery(sanitized);
+        const inventory = await options.invoke(options.channels.sessionList, []);
+        return findSessionMetadata(inventory, query, options.readSidebarPreferences?.());
+      }
       const listQuery = operation.id === "session/list" && input.source !== "plugin" ? sessionListQuery(sanitized) : undefined;
       if (operation.id === "agent/prompt") markAutomationRequest(sanitized[0]);
       const result = operation.channel === "internal:session-collaboration"

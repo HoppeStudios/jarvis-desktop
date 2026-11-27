@@ -85,3 +85,11 @@ or attachment paths. Unknown/timeout state is never empty. This is a read-only
 observation, not a lease permitting an updater to close the app; active work,
 calls and concurrent input require separate guards. Older clients do not expose
 this operation, so their first restart still needs an actual draft-state check.
+
+`pi_session_find` / `session/find` accepts a query object with an approximate title,
+optional project substring, includeArchived, owner=codex and limit 1–8. Native
+Codex owner scope distinguishes original chats from imported Pi history. It searches one native
+metadata inventory, tolerates accents/word order/small typos and returns matched,
+ambiguous or not-found with exact owner IDs. It never reads transcripts, opens a
+chat, reports live status or transfers voice. Use normal session/open separately
+after a clear match. Older application builds retain session/list as the fallback.

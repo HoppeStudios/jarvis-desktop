@@ -45,6 +45,8 @@ export type SessionSummary = {
   remoteHostLabel?: string;
   remoteProjectId?: string;
   remoteWorkspaceLabel?: string;
+  /** Verified native owner and its canonical Pi view; absent for unbound imports. Metadata, not execution authority. */
+  nativeOwner?: { hostKey: string; sessionId: string; viewId: string };
   /** Native sessions expose only safe actions in the first continuation slice. */
   capabilities?: SessionCapabilities;
   /** Stable machine-readable reason why a native session cannot be continued. */

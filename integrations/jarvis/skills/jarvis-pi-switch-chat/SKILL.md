@@ -6,7 +6,22 @@ description: Match approximate chat/project names in Pi Desktop and open an exis
 # Pi chat selection
 
 Interpret natural requests in any language. Reuse an unambiguous recent session ID;
-otherwise read Pi-Desktop `session/list` and match meaning/title approximately,
+otherwise prefer discovered `pi_session_find` / `session/find` with the approximate
+spoken title. It searches one native metadata inventory, without paging or reading
+messages. Use `includeArchived: true` for an older named chat and optional `project`
+to disambiguate project folders. A `matched` result supplies the actual Pi ID and
+source namespace; an `ambiguous` result needs one short clarification. Never open
+the first candidate merely because it is ranked first. Search alone does not open
+a chat, create work or move voice.
+
+For an explicitly requested original Codex chat, set `owner: "codex"`. This uses
+actual native owner namespaces or the bridge's verified bound-view references.
+Unbound imported history is not treated as the original. Retain the actual returned
+Pi view ID even when the original owner has a different native thread ID.
+Without that scope, identical unbound imported/native titles remain ambiguous;
+never infer identity or deduplicate them merely from title/project similarity.
+
+If that operation is absent, read Pi-Desktop `session/list` and match meaning/title approximately,
 ignoring accents, case and small speech errors. Ask one short question for a real
 ambiguity. Do not create a duplicate or read whole transcripts for a clear title.
 

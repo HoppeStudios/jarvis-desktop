@@ -3,6 +3,34 @@
 > Part of the [E2E test plan](../04-e2e-test-plan.md). Live Voice, Live Work, speech, and Remote Agent Control.
 > Scenario template, gates, and traceability live in the plan.
 
+## E2E-JARVIS-native-computer-interface
+
+- **Status:** Installed native API/UI acceptance passed; natural microphone
+  command acceptance remains a separate, unmeasured interaction check.
+- **Acceptance:** C / E / Security / Quality. **Milestone:** M6+.
+- **Preconditions:** Explicit persisted Jarvis enablement, reviewed selected Pi
+  installation, actual native session metadata and pinned computer/browser tools.
+- **Steps:** Start normally without the launcher-only MCP variable; inspect the
+  authenticated endpoint. Find a known chat using reordered words, missing accents
+  and a small typo. Repeat with duplicate titles, project filter and archived chat.
+  Open only the actual chosen ID. Try invalid queries and explicit environment
+  disable. Use a filtered Windows read and a supported bounded batch on a fixture.
+  Repeat with original Codex and imported Pi history sharing a title; explicit
+  owner=codex selects only the native original, while the unscoped lookup keeps
+  distinct exact-name records ambiguous.
+  Bind a Pi view to a verified native owner and confirm it stays discoverable,
+  with duplicate proven views collapsed but unbound snapshots retained. Open an
+  actual target and observe its selected UI: a bare-OK receipt is not navigation.
+- **Expected:** One metadata inventory call, bounded candidates and explicit
+  ambiguity; no transcripts, duplicate chat, message, call mutation or false live
+  status. Explicit startup disable wins. Existing authentication, profiles, account,
+  voice, drafts, isolation and refusal boundaries remain intact. Actual effects
+  are verified without moving the real pointer, keyboard, clipboard or foreground.
+- **Evidence:** `jarvis-interface-fastpath.test.mjs`, existing MCP gateway/wiring
+  tests, installed named-tool discovery, native timings and observed target state.
+  Synthetic matching speed alone is not end-to-end spoken latency proof. See
+  [native-interface spec](../jarvis-computer-interface.md).
+
 ## E2E-JARVIS-persistent-local-control
 
 - **Preconditions:** Installed reviewed Pi build, persisted Jarvis enabled, no
