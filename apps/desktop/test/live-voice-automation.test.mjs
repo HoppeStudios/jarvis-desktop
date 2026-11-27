@@ -274,8 +274,8 @@ test("phone input resolves one exact capture device without touching default mic
  const {requestCallMicrophone}=await import("../src/features/voice/live/call-input.ts");
  const label="CABLE Output (VB-Audio Virtual Cable)",input={kind:"virtual-cable",label};let captures=0;
  const device={kind:"audioinput",label,deviceId:"cable-1"};
- for(const devices of [[],[{...device,label:"Physical mic"}],[device,{...device,deviceId:"cable-2"}],[{...device,deviceId:"default"}]]){
-  await assert.rejects(requestCallMicrophone({enumerateDevices:async()=>devices,getUserMedia:async()=>{captures++;}},input),{errorCode:"LIVE_INPUT_UNAVAILABLE"});
+ for(const [devices,code] of [[[],"A0_L0_C0"],[[{...device,label:""}],"A1_L0_C0"],[[{...device,label:"Physical mic"}],"A1_L1_C0"],[[device,{...device,deviceId:"cable-2"}],"A2_L2_C2"],[[{...device,deviceId:"default"}],"A1_L1_C0"]]){
+  await assert.rejects(requestCallMicrophone({enumerateDevices:async()=>devices,getUserMedia:async()=>{captures++;}},input),{errorCode:`LIVE_INPUT_ENUM_${code}`});
  }
  const stream={};assert.equal(await requestCallMicrophone({enumerateDevices:async()=>[device],getUserMedia:async constraints=>{captures++;assert.equal(constraints.audio.deviceId.exact,"cable-1");return stream;}},input),stream);
  assert.equal(captures,1);

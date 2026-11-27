@@ -8,6 +8,28 @@ import { createProductionWorkHarness, settleUntil, WORK_INSTRUCTION, WORK_RESULT
 
 const callId = "live-work-production-call";
 
+test("a clear ordinal resolves the bound native ask once and delivery refusal never becomes acceptance", async t => {
+  const server=await createServer({root:fileURLToPath(new URL('..',import.meta.url)),configFile:false,resolve:{alias:{'@pi-desktop/host-runtime':fileURLToPath(new URL('../../../packages/host-runtime/src/index.ts',import.meta.url))}},server:{middlewareMode:true,hmr:false,ws:false},appType:'custom',optimizeDeps:{noDiscovery:true,include:[]}});
+  t.after(()=>server.close());
+  const {createLiveWorkBridge}=await server.ssrLoadModule('/electron/main/live-voice/work-bridge.ts');
+  const updates=[],resolved=[];let refuse=false;
+  const backend={agentHost:{workSnapshot:async()=>({sessionId:'worker',mode:'agent',state:'waiting-input',activeTurnId:'worker-turn',queue:[]})},
+    openAsk:()=>({inputId:'actual-input',turnId:'worker-turn',questions:[{question:'Which content?',options:['Přepis mého povelu','Dosavadní historie chatu']}]}),
+    onSessionEvent:()=>()=>{},observeWorkTarget:()=> 'worker-turn',
+    resolveOpenAsk:async request=>{if(refuse)throw new Error('native resolution refused');resolved.push(request);}};
+  const bridge=createLiveWorkBridge({getHost:()=>({call:async method=>method==='session.list'?{sessions:[{id:'worker',source:'desktop',mode:'agent'}]}:{}}),getAgentHostBridge:()=>backend,vendorOAuth:{},navigateSession:async()=>{},resolveCompletionProvider:async()=>{throw new Error('an explicit single-question ordinal needs no model round trip');},onOperation:(_call,update)=>updates.push(update)});
+  t.after(()=>bridge.closeCall('ordinal-call'));
+  bridge.openCall({callId:'ordinal-call',workSessionId:'worker',workBindingRevision:1,label:'worker',sessionSource:'desktop',contextEnabled:false},null);
+  const receive=id=>bridge.receiveCandidate({callId:'ordinal-call',workSessionId:'worker',workBindingRevision:1,providerRequestId:id,instruction:'beru první možnost'},async()=>({status:'sent',deliveryId:id}));
+  await receive('ordinal-1');
+  assert.deepEqual(resolved,[{sessionId:'worker',inputId:'actual-input',answers:[['Přepis mého povelu']]}]);
+  assert.equal(updates.at(-1).operation.admission,'accepted');
+  refuse=true;await receive('ordinal-2');
+  assert.equal(resolved.length,1);
+  assert.equal(updates.at(-1).operation.admission,'rejected');
+  assert.match(updates.at(-1).operation.summary,/could not be delivered/);
+});
+
 test("production Live WorkBridge reaches AgentHost admission, explicit queue, and exact terminal result", async (t) => {
   const server = await createServer({
     root: fileURLToPath(new URL("..", import.meta.url)),

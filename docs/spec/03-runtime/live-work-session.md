@@ -242,6 +242,14 @@ requires the manual matrix in the delivery plan.
 
 ## Validation references
 
+Spoken answers may use explicit ordinals or an unambiguous paraphrase of the
+actual pending question's options. The classifier resolves them to full offered
+labels; final Host validation still requires every question and rejects foreign
+labels. A native worker clarification is distinct from an external queue item.
+Live announces delivery only after successful native resolution, never after a
+received receipt or rejected candidate. Ambiguous, quoted, hypothetical or
+negated choices remain unanswered.
+
 The implementation and test evidence are tracked in
 [`../../implementation/live-work-evidence.md`](../../implementation/live-work-evidence.md).
 The target-selection decision is recorded in [ADR 0313](../../adr/0313-live-voice-default-session-target.md).

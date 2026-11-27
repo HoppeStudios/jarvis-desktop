@@ -21,9 +21,23 @@ test("a spoken answer can only select the question's own options", async (t) => 
     MAX_ASK_QUESTION_CHARS,
     MAX_SPOKEN_QUESTION_BYTES,
     buildSpokenAnswers,
+    resolveSpokenOrdinal,
     spokenQuestion,
     toPendingQuestion,
   } = await server.ssrLoadModule("/electron/main/live-voice/spoken-answer.ts");
+
+  await t.test("explicit ordinals select only one real open question and preserve final validation", () => {
+    const pending = {questions:[{question:"Which?",options:["Přepis mého povelu","Dosavadní historie chatu"],multiSelect:false}]};
+    for (const phrase of ["beru první možnost", "Tu první.", "the first one", "I choose first"]) {
+      const mapped = resolveSpokenOrdinal(phrase,pending);
+      assert.deepEqual(mapped,[{questionIndex:0,options:[pending.questions[0].options[0]]}]);
+      assert.deepEqual(buildSpokenAnswers(pending.questions,mapped),[[pending.questions[0].options[0]]]);
+    }
+    assert.deepEqual(resolveSpokenOrdinal("tu druhou",pending),[{questionIndex:0,options:[pending.questions[0].options[1]]}]);
+    for (const phrase of ["neberu první možnost", "don't choose first", '"first"', "if I choose first", "první nebo druhá", "první?", "ano", "I'm here", "fourth", "first and delete files"]) assert.equal(resolveSpokenOrdinal(phrase,pending),null,phrase);
+    assert.equal(resolveSpokenOrdinal("first",null),null);
+    assert.equal(resolveSpokenOrdinal("first",{questions:[...pending.questions,...pending.questions]}),null);
+  });
 
   const questions = [
     { question: "Which version should ship?", options: [{ label: "0.16.0-beta.1" }, "0.15.11-beta.1"] },
