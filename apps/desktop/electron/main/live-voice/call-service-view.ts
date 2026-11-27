@@ -13,6 +13,7 @@ export function toLiveCallView(slot: Slot): LiveCallView {
     userSpeaking: slot.userSpeaking,
     ...(slot.lastUserSpeechAt !== undefined ? { lastUserSpeechAt: slot.lastUserSpeechAt } : {}),
     userTurnCount: slot.userTurnCount ?? 0,
+    ...(slot.jarvisQueueContext ? { jarvisQueue: { state: slot.jarvisQueueContext.state, delivery: slot.jarvisQueueContext.delivery } } : {}),
     ...(slot.lastUserTurnAt !== undefined ? { lastUserTurnAt: slot.lastUserTurnAt } : {}),
     assistantSpeaking: slot.assistantSpeaking,
     ...(slot.workBinding ? { workBinding: slot.workBinding } : {}),

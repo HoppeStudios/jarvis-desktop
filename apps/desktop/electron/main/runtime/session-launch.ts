@@ -346,26 +346,14 @@ export function createSessionLaunchRuntime({
     }
   }
 
-  async function resolveAgentRuntimeLaunch(
-    sessionId: string,
-    session: any,
-    settings: any,
-    overrides: {
-      mode?: Mode;
-      turnId?: string;
-      providerId?: string;
-      modelId?: string;
-      thinkingLevel?: SessionThinkingLevel;
-    } = {},
+  // Tool-free completions share the exact model/auth binding with agents,
+  // without opening shells, MCP connections, skills or mutating a session.
+  async function resolveModelRuntimeBinding(
+    session: any, settings: any,
+    overrides: { providerId?: string; modelId?: string; thinkingLevel?: SessionThinkingLevel } = {},
   ) {
     if (!runtimeState.host) throw new Error("host unavailable");
     await modelsDevCatalog.ensureLoaded();
-    const remoteWorkspace = session.remoteWorkspace as { hostKey: string; path: string } | undefined;
-    const remoteBoot = remoteWorkspace ? getActiveRemoteHostsBoot() : null;
-    if (remoteWorkspace && !remoteBoot) throw new Error("remote host unavailable");
-    const commandShell = remoteWorkspace
-      ? await remoteBoot!.workspaceCommandShell(remoteWorkspace.hostKey)
-      : (await resolveEffectiveCommandShell()).effective!;
     const providers = await runtimeState.host!.call<{ providers: RuntimeProvider[] }>(
       "providers.list",
       { includeDisabled: false },
@@ -496,6 +484,59 @@ export function createSessionLaunchRuntime({
           storedModel?.defaultThinkingLevel,
       ),
     );
+    const runtimeProvider = {
+      id: provider.id,
+      name: provider.name,
+      vendorKey: provider.vendorKey,
+      baseUrl,
+      modelId,
+      apiKey: secret.value || "",
+      authKind: provider.authKind,
+      extensionAgentKey: provider.extensionAgentKey,
+      apiStyle,
+      ...optionalProviderHeaders(provider.headers),
+      supportsReasoning: thinkingCapabilities.supportsReasoning,
+      supportsVision: visionFromModelConfig(modelConfig),
+      supportedThinkingLevels: [...thinkingCapabilities.supportedThinkingLevels],
+      ...(modelConfig ? { modelConfig } : {}),
+    };
+    return { providers, provider, modelId, storedModel, thinkingLevel, runtimeProvider };
+  }
+
+  async function resolveCompletionProvider(
+    session: Record<string, unknown>, settings: any,
+    overrides: { providerId?: string; modelId?: string; thinkingLevel?: SessionThinkingLevel } = {},
+  ) {
+    const resolved = await resolveModelRuntimeBinding(session, settings, overrides);
+    if (resolved.runtimeProvider.extensionAgentKey) {
+      throw Object.assign(new Error("This provider does not support direct completion"), {
+        errorCode: ErrorCodes.MODEL_NOT_CONFIGURED,
+      });
+    }
+    return { providerId: resolved.provider.id, provider: resolved.runtimeProvider };
+  }
+
+  async function resolveAgentRuntimeLaunch(
+    sessionId: string,
+    session: any,
+    settings: any,
+    overrides: {
+      mode?: Mode;
+      turnId?: string;
+      providerId?: string;
+      modelId?: string;
+      thinkingLevel?: SessionThinkingLevel;
+    } = {},
+  ) {
+    if (!runtimeState.host) throw new Error("host unavailable");
+    const remoteWorkspace = session.remoteWorkspace as { hostKey: string; path: string } | undefined;
+    const remoteBoot = remoteWorkspace ? getActiveRemoteHostsBoot() : null;
+    if (remoteWorkspace && !remoteBoot) throw new Error("remote host unavailable");
+    const commandShell = remoteWorkspace
+      ? await remoteBoot!.workspaceCommandShell(remoteWorkspace.hostKey)
+      : (await resolveEffectiveCommandShell()).effective!;
+    const { providers, provider, modelId, storedModel, thinkingLevel, runtimeProvider } =
+      await resolveModelRuntimeBinding(session, settings, overrides);
     const projectPath =
       typeof session.projectPath === "string" && session.projectPath.trim()
         ? session.projectPath.trim()
@@ -824,22 +865,7 @@ export function createSessionLaunchRuntime({
         customSystemPrompt,
         projectInstructions,
         projectMemory,
-        provider: {
-          id: provider.id,
-          name: provider.name,
-          vendorKey: provider.vendorKey,
-          baseUrl,
-          modelId,
-          apiKey: secret.value || "",
-          authKind: provider.authKind,
-          extensionAgentKey: provider.extensionAgentKey,
-          apiStyle,
-          ...optionalProviderHeaders(provider.headers),
-          supportsReasoning: thinkingCapabilities.supportsReasoning,
-          supportsVision: visionFromModelConfig(modelConfig),
-          supportedThinkingLevels: [...thinkingCapabilities.supportedThinkingLevels],
-          ...(modelConfig ? { modelConfig } : {}),
-        },
+        provider: runtimeProvider,
         pluginTools: [
           ...plugins
             .getTools()
@@ -896,5 +922,6 @@ export function createSessionLaunchRuntime({
     loadUserSkillBody,
     resolveEffectiveCommandShell,
     resolveAgentRuntimeLaunch,
+    resolveCompletionProvider,
   };
 }

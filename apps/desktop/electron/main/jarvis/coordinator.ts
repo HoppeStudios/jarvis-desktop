@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AppSettings } from "@pi-desktop/shared";
 
@@ -30,6 +30,59 @@ Relevant user authorization persists; do not invent repeated confirmation gates.
 
 type Invoke = (channel: string, args?: readonly unknown[]) => Promise<any>;
 
+const WORK_ROLE_BEGIN = "<!-- jarvis-voice-work-agent:v1:begin -->";
+const WORK_ROLE_END = "<!-- jarvis-voice-work-agent:v1:end -->";
+const WORK_ROLE = `${WORK_ROLE_BEGIN}
+## Voice work agent
+
+The separate native GPT Live model is the user's speaking interface. This
+durable chat is its work agent: execute each complete concrete user request
+with the available tools, retain the task context, and handle clarifications in
+this same chat. Do not merely promise work or bounce it through coordinators.
+Actual work received from Live keeps its original scope and constraints.
+
+GPT Live handles presence and the spoken briefing. Silently read the shared queue
+when required, but do not replace an unrelated concrete task with a queue briefing.
+Perform queue operations when the actual forwarded request concerns that queue
+or its originating answers; presence is never an answer to a queued question.
+
+Use GPT-6.1 Sol, low effort (Lightweight), with Fast requested for voice-dispatched
+work. If creating another work chat is genuinely necessary, explicitly use that
+same model, low effort and Fast unless the user specifically overrides them.
+Do not silently change the account or native speaking voice. This specific voice
+workflow supersedes the earlier general medium/high creation default above.
+
+Reuse another existing task chat only when that is the actual requested target
+or needed to complete the task. Forward the full relevant request, wait for its
+real result and retain that destination for follow-ups. A dispatch receipt alone
+is not completion. Do not recursively forward through another coordinator.
+
+Start final replies with a concise result, useful evidence and any actual blocker
+for Live to summarize. Ask a short clarification only when it is truly needed;
+do not ask for accessible technical facts. Keep native approvals in their real
+interfaces. Forwarding a request does not approve a permission or authorize a
+previously denied action through a different model, service or runtime.
+${WORK_ROLE_END}
+`;
+
+let roleUpdate: Promise<void> = Promise.resolve();
+/** Append the requested role once; preserve existing customization and serialize creators. */
+function ensureVoiceWorkRole(path: string): Promise<void> {
+  roleUpdate = roleUpdate.catch(() => undefined).then(async () => {
+    const text = await readFile(path, "utf8");
+    const begin = text.indexOf(WORK_ROLE_BEGIN), end = text.indexOf(WORK_ROLE_END);
+    if (begin >= 0 || end >= 0) {
+      if (begin < 0 || end < begin || text.indexOf(WORK_ROLE_BEGIN, begin + WORK_ROLE_BEGIN.length) >= 0 ||
+          text.indexOf(WORK_ROLE_END, end + WORK_ROLE_END.length) >= 0) {
+        throw Object.assign(new Error("Jarvis work-role block requires reconciliation"), { errorCode: "LIVE_COORDINATOR_INSTRUCTIONS_UNCONFIRMED" });
+      }
+      return;
+    }
+    await appendFile(path, `${text.endsWith("\n") ? "\n" : "\n\n"}${WORK_ROLE}`, "utf8");
+  });
+  return roleUpdate;
+}
+
 /** Normal session IPC owns persistence, provider enrichment and mode policy. */
 export async function createJarvisCoordinator(input: {
   dataDir: string;
@@ -50,6 +103,7 @@ export async function createJarvisCoordinator(input: {
   // Existing customization survives upgrades without a rollback copy.
   await writeFile(join(projectPath, "AGENTS.md"), INSTRUCTIONS, { encoding: "utf8", flag: "wx" })
     .catch(error => { if (error.code !== "EEXIST") throw error; });
+  await ensureVoiceWorkRole(join(projectPath, "AGENTS.md"));
   const result = await input.invoke(input.createChannel, [{
     title: "Jarvis", mode: "agent", projectPath, providerId: binding.providerId,
     modelId: "gpt-6.1-sol", thinkingLevel: "low", fastMode: true,

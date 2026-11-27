@@ -3,7 +3,7 @@ import type { LiveAutomationRequest, LiveAutomationResponse, LiveCallView } from
 type Controller = {
   refreshStatus: () => Promise<void>;
   getSnapshot: () => { starting: boolean; stopping: boolean; call: LiveCallView | null; errorCode?: string };
-  start: (options: { requestId: string; signal: AbortSignal; workTarget?: { workSessionId: string } }) => Promise<void>;
+  start: (options: { requestId: string; signal: AbortSignal; input?: LiveAutomationRequest["input"]; workTarget?: { workSessionId: string } }) => Promise<void>;
   toggleMute: () => Promise<void>;
   presenceGreeting?: () => Promise<{ greetingPlayed: boolean; greetingFinishedAt?: number }>;
 };
@@ -33,7 +33,7 @@ export class LiveAutomationReceiver {
       if (abort.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "LIVE_STALE_CALL" });
       const before = this.controller.getSnapshot();
       if (before.starting || before.stopping || before.call && !["ended", "failed"].includes(before.call.phase)) throw Object.assign(new Error("busy"), { code: "LIVE_ALREADY_ACTIVE" });
-      await this.controller.start({ requestId: request.requestId, signal: abort.signal, ...(request.workSessionId ? { workTarget: { workSessionId: request.workSessionId } } : {}) });
+      await this.controller.start({ requestId: request.requestId, signal: abort.signal, ...(request.input ? { input: request.input } : {}), ...(request.workSessionId ? { workTarget: { workSessionId: request.workSessionId } } : {}) });
       if (abort.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "LIVE_STALE_CALL" });
       if (request.initialMuted === false && this.controller.getSnapshot().call?.muted) await this.controller.toggleMute();
       if (request.presenceGreeting) Object.assign(response, await this.controller.presenceGreeting?.() ?? { greetingPlayed: false });

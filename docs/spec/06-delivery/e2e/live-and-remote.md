@@ -3,6 +3,30 @@
 > Part of the [E2E test plan](../04-e2e-test-plan.md). Live Voice, Live Work, speech, and Remote Agent Control.
 > Scenario template, gates, and traceability live in the plan.
 
+## E2E-JARVIS-whole-task-follow-up
+
+- **Preconditions:** Fresh Jarvis Live call and durable GPT-6.1 Sol low/Fast
+  work session, existing selected account and voice, no unrelated active call.
+- **Steps:** Speak a complete harmless task with constraints, await its result,
+  then give a refinement without naming another chat.
+- **Expected:** Full instructions and refinement reach the same work session;
+  Live summarizes actual results, not admission receipts. Fast preference reaches
+  the classifier. No unrelated history is read and native permission gates remain.
+- **Automation:** Coordinator, backend-port and current-call context tests cover
+  the deterministic contracts. Provider-backed spoken acceptance is separate.
+
+## E2E-JARVIS-phone-input-reservation
+
+- **Preconditions:** Authenticated enrolled phone, idle Pi Live and one exact
+  virtual-cable microphone. Pairing identity remains unchanged.
+- **Steps:** Start a phone call, then end normally and reconnect.
+- **Expected:** Main reserves the microphone before device enumeration/capture;
+  no physical-microphone fallback. The phone hears replies and its speech reaches
+  Live. Failed reservation performs no enumeration/capture and retains only a
+  bounded native `LIVE_*` startup error code.
+- **Automation:** Call-input/controller tests cover reservation ordering and
+  failure. Physical phone listening and reconnect remain device acceptance.
+
 ## E2E-LIVE-VOICE-gemini-work-schema
 
 - **Preconditions:** Production Gemini adapter with a deterministic transport

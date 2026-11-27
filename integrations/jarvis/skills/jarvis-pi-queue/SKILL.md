@@ -25,6 +25,21 @@ ending a call and merely generating audio leave the item pending. Re-read the
 queue between items. Deferred entries wait until due unless explicitly requested.
 
 For questions, inspect the actual origin and current delivery capabilities.
+For a verified Codex origin, the installed shared-chat adapter exposes its native
+owner through `remote:codex-shared:<actual threadId>`. Read `session/get` and
+`agent/pendingInteractive` for that exact ID; require a Codex source, never infer
+an origin from a similar title or relabel a Pi UUID. If there is an exact matching
+native ask, use its real request ID and `agent/askTool/resolve`. An asynchronous
+Codex question may have no native ask entry: forward the actual human reply as
+text through `agent/prompt` when idle, or `agent/steer` with the freshly read
+`currentTurnId` as `expectedTurnId` when working. Do not stop the source turn.
+Include the original question and exact human reply so short choices retain
+their meaning. A stale-turn failure requires a fresh read, not a blind retry.
+Read back the originating chat's accepted input before `record_answer`, using
+the real Codex origin and successful native receipt. This records message
+delivery; it does not claim that an asynchronous desktop form was submitted.
+Missing capabilities or uncertain delivery leave the item and draft pending.
+
 `threadId` with no explicit engine is a legacy Codex origin, not a Pi session.
 An imported conversation does not move its live worker or approval form. Forward
 the actual human answer only through the originating engine's supported native

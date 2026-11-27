@@ -18,6 +18,13 @@ const item = (input: {
 });
 
 describe("projectTurnResultSummary", () => {
+  it("waits for an answer when only explicit Responses progress commentary is persisted", () => {
+    const progress = item({id:"progress",turnId:"turn-1",role:"assistant",content:"I will check.",createdAt:"2026-01-01T00:00:00Z"});
+    const signedProgress={...progress,content:{...progress.content,providerReplay:{version:1 as const,blocks:[{type:"text" as const,length:progress.content.content.length,signature:JSON.stringify({v:1,id:"msg-progress",phase:"commentary"})}]}}};
+    expect(findTurnResult([signedProgress],"turn-1")).toBeUndefined();
+    const answer=item({id:"answer",turnId:"turn-1",role:"assistant",content:"The folder is workspace.",createdAt:"2026-01-01T00:00:01Z"});
+    expect(findTurnResult([signedProgress,answer],"turn-1")).toEqual({text:"The folder is workspace.",sourceMessageId:"answer"});
+  });
   it("uses only the latest assistant message from the exact terminal turn", () => {
     const result = projectTurnResultSummary([
       item({ id: "old", turnId: "turn-1", role: "assistant", content: "Earlier reply.", createdAt: "2026-01-01T00:00:00Z" }),

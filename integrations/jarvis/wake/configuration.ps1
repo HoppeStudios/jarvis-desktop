@@ -3,12 +3,13 @@ function Read-JarvisSettings([string]$Path=(Join-Path $PSScriptRoot 'settings.js
   $defaults=@{wakePhrases=@('Hey Jarvis');pollIntervalSeconds=2;notificationsEnabled=$true;notificationVoice='';notificationRate=0;notificationVolume=85;announcementMaxChars=900;announcementTimeoutSeconds=90;endSilenceMilliseconds=350;ambiguousSilenceMilliseconds=600;activationBehavior='toggle';recognizerCulture='en-GB';commandOverrides=[pscustomobject]@{}}
   foreach($key in $defaults.Keys){if($configuration.PSObject.Properties.Name -notcontains $key){$configuration | Add-Member -NotePropertyName $key -NotePropertyValue $defaults[$key]}}
   foreach($entry in @{invitationCooldownMinutes=30;invitationTimeoutSeconds=10;returnIdleSeconds=120}.GetEnumerator()){if($configuration.PSObject.Properties.Name -notcontains $entry.Key){$configuration|Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value}}
+  if($configuration.PSObject.Properties.Name -notcontains 'endingMinimumConfidence'){$configuration|Add-Member -NotePropertyName endingMinimumConfidence -NotePropertyValue 0.8}
   Assert-JarvisSettings $configuration
   return $configuration
 }
 function Assert-JarvisSettings($configuration) {
   foreach($spec in @(@('invitationCooldownMinutes',1,1440),@('invitationTimeoutSeconds',5,60),@('returnIdleSeconds',30,3600))){if($configuration.PSObject.Properties.Name -contains $spec[0]){$n=0.0;if(-not [double]::TryParse([string]$configuration.($spec[0]),[ref]$n) -or $n -lt $spec[1] -or $n -gt $spec[2]){throw ('Invalid setting: '+$spec[0])}}}
-  foreach($spec in @(@('minimumConfidence',0.3,0.95),@('pollIntervalSeconds',1,30),@('notificationRate',-5,5),@('notificationVolume',0,100),@('announcementMaxChars',100,2000),@('announcementTimeoutSeconds',15,180),@('endSilenceMilliseconds',150,2500),@('ambiguousSilenceMilliseconds',150,3500))){
+  foreach($spec in @(@('minimumConfidence',0.3,0.95),@('endingMinimumConfidence',0.3,0.99),@('pollIntervalSeconds',1,30),@('notificationRate',-5,5),@('notificationVolume',0,100),@('announcementMaxChars',100,2000),@('announcementTimeoutSeconds',15,180),@('endSilenceMilliseconds',150,2500),@('ambiguousSilenceMilliseconds',150,3500))){
     $value=$configuration.($spec[0]);$number=0.0
     if(-not [double]::TryParse([string]$value,[Globalization.NumberStyles]::Float,[Globalization.CultureInfo]::InvariantCulture,[ref]$number) -or $number -lt $spec[1] -or $number -gt $spec[2]){throw ('Invalid setting: '+$spec[0])}
   }

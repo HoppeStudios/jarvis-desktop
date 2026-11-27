@@ -23,6 +23,7 @@ export type LiveWorkSessionRecord = {
   hostLabel?: string;
   providerId?: string;
   modelId?: string;
+  fastMode?: boolean;
   mode: "agent" | "plan" | "goal";
   permissionMode?: string;
   activeTurnId?: string;
@@ -74,6 +75,7 @@ export async function listLiveWorkSessions(input: {
       ...(typeof session.projectPath === "string" ? { projectPath: session.projectPath } : {}),
       ...(typeof session.providerId === "string" ? { providerId: session.providerId } : {}),
       ...(typeof session.modelId === "string" ? { modelId: session.modelId } : {}),
+      ...(typeof session.fastMode === "boolean" ? { fastMode: session.fastMode } : {}),
       mode: session.mode === "plan" || session.mode === "goal" ? session.mode : "agent",
       ...(typeof session.permissionMode === "string" ? { permissionMode: session.permissionMode } : {}),
     }];
@@ -90,6 +92,7 @@ export async function listLiveWorkSessions(input: {
       ...(typeof session.projectPath === "string" ? { projectPath: session.projectPath } : {}),
       ...(typeof session.providerId === "string" ? { providerId: session.providerId } : {}),
       ...(typeof session.modelId === "string" ? { modelId: session.modelId } : {}),
+      ...(typeof session.fastMode === "boolean" ? { fastMode: session.fastMode } : {}),
       mode: "agent",
       ...(typeof session.permissionMode === "string" ? { permissionMode: session.permissionMode } : {}),
       canPrompt: capabilities.canPrompt === true,

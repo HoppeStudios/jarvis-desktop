@@ -28,6 +28,7 @@ import {
   openCodeEndpointFromProvider,
   withOpenCodeSessionHeaders,
 } from "./opencode-session-headers.js";
+import { withFastModeOptions } from "./fast-mode.js";
 import { withSessionAffinityOptions } from "./session-affinity.js";
 import { mergeProviderHeaders, withProviderHeaders } from "./provider-headers.js";
 import {
@@ -50,6 +51,8 @@ export type OneShotCompleteStream = (
 
 export type OneShotCompleteOptions = {
   signal?: AbortSignal;
+  /** Request the supported priority tier only when explicitly enabled. */
+  fastMode?: boolean;
   stream?: OneShotCompleteStream;
   /** Optional hard cap for callers whose response schema has a small bound. */
   maxOutputTokens?: number;
@@ -141,7 +144,7 @@ export async function completeOneShot(
   // A one-shot call spends the session's credential like any turn does, so it
   // carries the session id too; a caller that supplies none keeps an unkeyed
   // request, and an endpoint that is not stamped is returned unchanged.
-  const sessionOptions = withSessionAffinityOptions(requestOptions, {
+  const sessionOptions = withSessionAffinityOptions(withFastModeOptions(requestOptions, model.api, options.fastMode === true), {
     provider,
     api: model.api,
     baseUrl: model.baseUrl,

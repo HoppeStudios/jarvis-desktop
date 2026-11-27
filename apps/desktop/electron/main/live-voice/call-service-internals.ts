@@ -58,7 +58,7 @@ export type LiveCallServiceDeps = {
     | { kind: "project"; projectPath: string }
   >;
   receiveWorkCandidate?: (
-    candidate: { callId: string; workBindingRevision: number; workSessionId: string; providerRequestId: string; instruction: string },
+    candidate: { callId: string; workBindingRevision: number; workSessionId: string; providerRequestId: string; instruction: string; queueContext?: string },
     deliverReceipt: (receipt: LiveProviderReceipt) => Promise<LiveReceiptDelivery>,
   ) => Promise<void>;
   stopWorkOperation?: (input: { callId: string; operationId: string }) => Promise<LiveWorkStopOperationResult>;
@@ -70,7 +70,7 @@ export type LiveCallServiceDeps = {
    * renderer, so a collapsed generic toast could never be traced back to
    * the error code that produced it.
    */
-  log?: (level: "warn" | "error", message: string, data: Record<string, unknown>) => void;
+  log?: (level: "info" | "warn" | "error", message: string, data: Record<string, unknown>) => void;
 };
 
 export type Slot = {
@@ -98,6 +98,8 @@ export type Slot = {
   lastUserTurnAt?: number;
   userTurnCount?: number;
   userTurnIds?: Set<string>;
+  jarvisQueueContext?: { content: string; replyContext?: string; state: "ready" | "unavailable"; delivery: "pending" | "sent" | "not-sent" | "unknown" };
+  jarvisQueueDispatched?: boolean;
   assistantSpeaking: boolean;
   assistantPlaybackActive: boolean;
   playbackMonitorReady: boolean;
@@ -127,7 +129,7 @@ export type Slot = {
   delegationInstructions: Map<string, string>;
   pendingControls: Map<string, {
     timer: ReturnType<typeof setTimeout>;
-    kind: "reject" | "work-receipt" | "work-navigation" | "work-feedback";
+    kind: "reject" | "work-receipt" | "work-navigation" | "work-feedback" | "session-context";
     resolve?: (delivery: LiveReceiptDelivery) => void;
   }>;
   transcriptLengths: Map<string, number>;

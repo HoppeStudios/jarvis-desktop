@@ -42,17 +42,16 @@ export function createLiveCallService(input: {
    */
   onCallView?: (view: LiveCallView | null) => void;
   microphoneLeases: MicrophoneLeaseRegistry;
-  resolveAgentRuntimeLaunch: (
-    sessionId: string,
+  resolveCompletionProvider: (
     session: Record<string, unknown>,
     settings: unknown,
     overrides: { providerId?: string; modelId?: string; thinkingLevel?: ThinkingLevel },
   ) => Promise<{
     providerId: string;
-    sidecarParams: { provider: import("@pi-desktop/agent-runtime").RuntimeProviderConfig };
+    provider: import("@pi-desktop/agent-runtime").RuntimeProviderConfig;
   }>;
   /** Terminal call failures land in the `provider` log channel (see spec 09). */
-  log?: (level: "warn" | "error", message: string, data: Record<string, unknown>) => void;
+  log?: (level: "info" | "warn" | "error", message: string, data: Record<string, unknown>) => void;
 }): LiveCallService {
   const backgroundLeases = new Map<number, BackgroundLease>();
   const authorizedWorkspaces = new WeakMap<object, string | null>();
@@ -78,7 +77,9 @@ export function createLiveCallService(input: {
       if (!liveCallService) return Promise.reject(Object.assign(new Error("Live call service is unavailable"), { errorCode: "LIVE_WORK_NOT_READY" }));
       return liveCallService.navigateWorkSession(callId, sessionId);
     },
-    resolveAgentRuntimeLaunch: input.resolveAgentRuntimeLaunch,
+    resolveCompletionProvider: input.resolveCompletionProvider,
+    onClassifierFailure: failure => input.log?.("warn", "Live work classification failed", failure),
+    onClassifierTiming: timing => input.log?.("info", "Live work classification timing", timing),
     onOperation: (callId, update) => {
       const operation = update.operation;
       liveCallService?.notifyWorkOperation(callId, {
@@ -114,18 +115,21 @@ export function createLiveCallService(input: {
     log: input.log,
     loadWorkStartupContext: async ({ callId, signal }) => {
       const scope = `jarvis-live-startup:${callId}`;
+      let queueToolName: string | undefined;
       return loadJarvisQueueContext({
         enabled: latestSettings?.jarvisEnabled === true && latestSettings?.jarvisQueueEnabled === true,
         signal,
         cancel: () => input.userMcp?.cancelSessionCalls(scope),
-        read: async (readSignal) => {
+        read: async (readSignal, offset) => {
           if (!input.userMcp || !input.refreshUserMcp) throw new Error("Queue MCP runtime unavailable");
-          await input.refreshUserMcp(null);
-          const tools = await input.userMcp.toolsForProject(null, "Jarvis-Inbox");
+          if (!queueToolName) {
+            await input.refreshUserMcp(null);
+            const tools = await input.userMcp.toolsForProject(null, "Jarvis-Inbox");
+            queueToolName = tools.find((entry) => entry.serverId === "Jarvis-Inbox" && entry.toolName === "review_queue")?.fullName;
+          }
           if (readSignal.aborted) throw new Error("Live startup cancelled");
-          const tool = tools.find((entry) => entry.serverId === "Jarvis-Inbox" && entry.toolName === "review_queue");
-          if (!tool) throw new Error("Queue read tool unavailable");
-          return input.userMcp.callTool(tool.fullName, { limit: 100 }, null, scope);
+          if (!queueToolName) throw new Error("Queue read tool unavailable");
+          return input.userMcp.callTool(queueToolName, { limit: 100, offset }, null, scope);
         },
       });
     },

@@ -106,3 +106,15 @@ ordinary Startup does not enable it. Fixture success is not a spoken wake test.
 The grammar/settings helpers were ported from the maintained Codex fork and keep
 their validation contracts. Private state, requests, receipts, transcripts,
 recordings and runtime metadata must not be committed.
+
+### Call-ending recognition confidence
+
+Wake activation retains `minimumConfidence`. Speech that would end an active
+call (including a toggle or replacement conversation) also requires
+`endingMinimumConfidence`, default `0.8`. This separately adjustable threshold
+rejects weak closing hypotheses without reducing idle wake sensitivity. Explicit
+control/tray commands are unaffected. Recognition audit records the hypothesis
+and accepted action separately; a rejected hypothesis does not change the call.
+
+Run `test-ending-confidence.ps1` with the installed PowerShell runtime for the
+low-confidence end regression and clear toggle/ensure-on checks.

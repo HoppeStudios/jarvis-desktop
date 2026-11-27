@@ -928,12 +928,9 @@ const liveCallService = createLiveCallService({
   getRemoteHosts: () => getActiveRemoteHostsBoot(),
   vendorOAuth,
   microphoneLeases,
-  resolveAgentRuntimeLaunch: (sessionId, session, settings, overrides) => {
+  resolveCompletionProvider: (session, settings, overrides) => {
     if (!sessionLaunchRuntime) return Promise.reject(new Error("session launch runtime is not initialized"));
-    return sessionLaunchRuntime.resolveAgentRuntimeLaunch(sessionId, session, settings, {
-      ...overrides,
-      mode: "agent",
-    });
+    return sessionLaunchRuntime.resolveCompletionProvider(session, settings, overrides);
   },
   log: (level, message, data) => logger.app("provider", level, message, { data }),
   onCallView: (view) => liveVoiceWidget.publish(view),

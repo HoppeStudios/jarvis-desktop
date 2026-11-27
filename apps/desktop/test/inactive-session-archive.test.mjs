@@ -7,7 +7,8 @@ const { sessionListPage, sessionListQuery } = await import("../electron/main/mcp
 const now = Date.parse("2026-11-26T12:00:00Z");
 const session = (id, age) => ({ id, title: id, updatedAt: new Date(now - age).toISOString() });
 
-test("strict seven-day threshold and invalid timestamps preserve recent/unknown chats", () => {
+test("strict four-week threshold and invalid timestamps preserve recent/unknown chats", () => {
+  assert.deepEqual(inactiveSessionIds([session("ten-days",10*24*60*60*1000),session("twenty-nine-days",29*24*60*60*1000)],{},new Set(),now),["twenty-nine-days"]);
   const sessions = [session("old", CHAT_INACTIVITY_MS + 1), session("boundary", CHAT_INACTIVITY_MS),
     session("recent", 1000), { id: "unknown", updatedAt: "invalid" }];
   assert.deepEqual(inactiveSessionIds(sessions, {}, new Set(), now), ["old"]);

@@ -43,6 +43,7 @@ foreach($name in @([System.Speech.Recognition.SpeechRecognitionEngine]::Installe
 $culture.SelectedItem=[string]$configuration.recognizerCulture
 Add-SettingsField $voice 'recognizerCulture' 'Jazyk místního rozpoznávače' $culture
 Add-SettingsField $voice 'minimumConfidence' 'Citlivost: nižší číslo přijímá více výsledků' (New-SettingsNumber $configuration.minimumConfidence 0.3 0.95 2)
+Add-SettingsField $voice 'endingMinimumConfidence' 'Jistota požadovaná pro vypnutí hovoru' (New-SettingsNumber $configuration.endingMinimumConfidence 0.3 0.99 2)
 Add-SettingsField $voice 'endSilenceMilliseconds' 'Pauza pro dokončení oslovení (ms)' (New-SettingsNumber $configuration.endSilenceMilliseconds 150 2500)
 Add-SettingsField $voice 'ambiguousSilenceMilliseconds' 'Pauza při nejasném výsledku (ms)' (New-SettingsNumber $configuration.ambiguousSilenceMilliseconds 150 3500)
 $behavior=New-Object Windows.Forms.ComboBox;$behavior.DropDownStyle='DropDownList';$behavior.Items.AddRange([object[]]@('toggle','wake'));$behavior.SelectedItem=$configuration.activationBehavior
@@ -75,7 +76,7 @@ $errorLabel=New-Object Windows.Forms.Label;$errorLabel.Dock='Bottom';$errorLabel
 $save.Add_Click({
   try{
     $next=Read-JarvisSettings $SettingsPath
-    foreach($key in @('minimumConfidence','pollIntervalSeconds','invitationCooldownMinutes','invitationTimeoutSeconds','returnIdleSeconds','endSilenceMilliseconds','ambiguousSilenceMilliseconds')){$next.$key=[double]$fields[$key].Value}
+    foreach($key in @('minimumConfidence','endingMinimumConfidence','pollIntervalSeconds','invitationCooldownMinutes','invitationTimeoutSeconds','returnIdleSeconds','endSilenceMilliseconds','ambiguousSilenceMilliseconds')){$next.$key=[double]$fields[$key].Value}
     if(-not $fields.recognizerCulture.SelectedItem){throw 'Vyberte nainstalovaný jazyk rozpoznávače.'}
     $next.recognizerCulture=[string]$fields.recognizerCulture.SelectedItem
     $next.activationBehavior=[string]$fields.activationBehavior.SelectedItem

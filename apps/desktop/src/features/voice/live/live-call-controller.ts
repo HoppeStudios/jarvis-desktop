@@ -7,6 +7,7 @@ import {
 } from "@pi-desktop/voice-runtime/live";
 import type {
   LiveCallView,
+  LiveCallInput,
   LiveControlEvent,
   LiveStatus,
   LiveTranscriptSegment,
@@ -22,6 +23,8 @@ import { noteSessionCleanupUserPresence } from "../../../lib/session-cleanup-rea
 import { installSessionCleanupRuntime } from "./session-cleanup-runtime";
 import { playPresenceGreeting, type PresenceGreetingResult } from "./presence-greeting";
 import { CodexTranscriptAssembler } from "./codex-transcript";
+import { sendJarvisSessionContext } from "./jarvis-session-context";
+import { requestCallMicrophone } from "./call-input";
 
 export type LiveVoiceSnapshot = {
   status: LiveStatus | null;
@@ -150,7 +153,7 @@ export class LiveCallController {
     });
   }
 
-  async start(options: { workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean; requestId?: string; signal?: AbortSignal } = {}): Promise<void> {
+  async start(options: { input?: LiveCallInput; workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean; requestId?: string; signal?: AbortSignal } = {}): Promise<void> {
     if (options.signal?.aborted) throw liveError("LIVE_STALE_CALL");
     if (this.snapshot.starting || this.snapshot.stopping || isLive(this.snapshot.call?.phase)) return;
     if (this.snapshot.call?.error?.code === "LIVE_MEDIA_RELEASE_UNCONFIRMED" || this.snapshot.errorCode === "LIVE_MEDIA_RELEASE_UNCONFIRMED") {
@@ -192,7 +195,9 @@ export class LiveCallController {
           void liveVoiceApi.end({ callId: prepared.callId, reason: "user-cancelled-start" }).catch(() => undefined);
         }
       }).catch(() => undefined);
-      micRequest = requestMicrophone(this.microphoneDeviceId);
+      micRequest = options.input
+        ? requestCallMicrophone(navigator.mediaDevices, options.input, prepareRequest)
+        : requestMicrophone(this.microphoneDeviceId);
       resources.microphoneRequest = micRequest;
       void micRequest.then((stream) => {
         resources.microphoneRequestSettled = true;
@@ -260,7 +265,9 @@ export class LiveCallController {
       void micRequest?.then((stream) => stopStream(stream)).catch(() => undefined);
       try {
         if (resources.callId) {
-          await liveVoiceApi.end({ callId: resources.callId, reason: resources.abort.signal.aborted ? "user-cancelled-start" : "network-error" });
+          const code = errorCode(error);
+          await liveVoiceApi.end({ callId: resources.callId, reason: resources.abort.signal.aborted ? "user-cancelled-start" : "network-error",
+            ...(!resources.abort.signal.aborted && /^LIVE_[A-Z0-9_]{1,70}$/.test(code) ? { errorCode: code } : {}) });
         } else {
           await liveVoiceApi.end({ requestId, reason: "user-cancelled-start" });
           resources.mainTerminationSettled = true;
@@ -445,7 +452,9 @@ export class LiveCallController {
             // utterance then receives its own presence/deduplication identity.
             const segment = (resources.transcripts ??= new CodexTranscriptAssembler()).push(event, Date.now());
             this.handleTranscript(callId, segment);
-            if (event.role === "user" && event.final && event.text.trim()) {
+            // Native final transcripts can be delayed until hangup. A real nonempty
+            // partial transcript establishes presence, never an item answer.
+            if (event.role === "user" && event.text.trim()) {
               void liveVoiceApi.reportUserTurn({ callId, itemId: segment.id }).catch((error) => this.failActive(callId, error));
             }
             break;
@@ -456,15 +465,24 @@ export class LiveCallController {
           case "turn-complete":
             resources.lastProviderTurnCompleteAt = Date.now();
             break;
-          case "error":
-            void this.failActive(callId, liveError(event.code));
+          case "error": {
+            const wire = value as { type?: unknown; code?: unknown; error?: { code?: unknown; type?: unknown; param?: unknown } };
+            const providerCode = wire.error?.code ?? wire.code ?? wire.error?.type;
+            const code = wire.type === "error" ? (typeof providerCode === "string" && /^[a-zA-Z_]{1,48}$/.test(providerCode)
+              ? "LIVE_CODEX_" + providerCode.toUpperCase() : "LIVE_CODEX_PROVIDER_ERROR")
+              : wire.type === "delegation.created" ? "LIVE_DELEGATION_INCOMPLETE" : event.code;
+            const param = wire.error?.param;
+            const diagnostic = typeof param === "string" && /^[a-zA-Z0-9_.\[\]]{1,48}$/.test(param)
+              ? (code + "_" + param.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase()).slice(0,75) : code;
+            void this.failActive(callId, liveError(diagnostic));
             break;
+          }
           default:
             break;
         }
       }
     } catch (error) {
-      void this.failActive(callId, liveError("LIVE_PROTOCOL_ERROR", String(error)));
+      void this.failActive(callId, liveError("LIVE_PROTOCOL_EVENT_HANDLER"));
     }
   }
 
@@ -625,6 +643,15 @@ export class LiveCallController {
       resources.pcm?.resetPlayback(event.playbackEpoch);
       return;
     }
+    if (event.kind === "session-context") {
+      const call = this.snapshot.call;
+      const completed = resources.completedControlActions ??= new Set();
+      const applied = sendJarvisSessionContext({callId:event.callId,currentCallId:call?.callId,
+        adapterId:call?.adapterId,actionId:event.actionId,content:event.content,channel:resources.channel,completed});
+      void liveVoiceApi.reportControlApplied({callId:event.callId,actionId:event.actionId,applied,
+        ...(!applied ? {errorCode:"LIVE_WORK_FEEDBACK_UNDELIVERED"} : {})});
+      return;
+    }
     if (event.kind === "work-receipt") {
       this.sendCodexControl(event.callId, event.actionId, event.delegationId, event.receipt, resources);
       return;
@@ -729,8 +756,10 @@ export class LiveCallController {
   private async failActive(callId: string, error: unknown): Promise<void> {
     const resources = this.resources.get(callId);
     if (!resources) return;
-    this.patch({ errorCode: errorCode(error) });
-    await liveVoiceApi.end({ callId, reason: "network-error" }).catch(() => undefined);
+    const code = errorCode(error);
+    this.patch({ errorCode: code });
+    await liveVoiceApi.end({ callId, reason: code === "LIVE_PROTOCOL_ERROR" ? "protocol-error" : "network-error",
+      ...(/^LIVE_[A-Z0-9_]{1,70}$/.test(code) ? { errorCode: code } : {}) }).catch(() => undefined);
   }
 
   private releaseResources(resources: StartResources, notifyMain: boolean): Promise<void> {

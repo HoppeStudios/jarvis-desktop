@@ -7,6 +7,7 @@ $sourceRoot=if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'desktop_control.
 . (Join-Path $sourceRoot 'commands.ps1')
 . (Join-Path $sourceRoot 'state.ps1')
 . (Join-Path $sourceRoot 'invitation.ps1')
+. (Join-Path $sourceRoot 'invitation-gate.ps1')
 $settings=Read-JarvisSettings (Join-Path $appRoot 'settings.json')
 Add-Type -AssemblyName System.Speech
 Add-Type -AssemblyName System.Windows.Forms
@@ -33,8 +34,8 @@ $jobs=[Collections.Generic.List[object]]::new();$nextPoll=[DateTime]::MinValue;$
 $tray=[Windows.Forms.NotifyIcon]::new();$tray.Icon=[Drawing.Icon]::new((Join-Path $appRoot 'icon.ico'));$tray.Visible=$true
 $menu=[Windows.Forms.ContextMenuStrip]::new();$nativeSettings=$menu.Items.Add('Pi Desktop settings');$nativeSettings.add_Click({try{$null=Start-Worker @{operation='settings'} $null $false}catch{Show-Error $_.Exception.Message}})
 $wakeSettings=$menu.Items.Add('Wake word settings');$wakeSettings.add_Click({$p=[Diagnostics.ProcessStartInfo]::new((Get-Process -Id $PID).Path);$p.UseShellExecute=$false;$p.CreateNoWindow=$true;foreach($a in @('-STA','-NoProfile','-File',(Join-Path $sourceRoot 'settings.ps1'),'-RootPath',$appRoot)){$p.ArgumentList.Add($a)};$null=[Diagnostics.Process]::Start($p)})
-$pauseItem=$menu.Items.Add('Pause listening');$pauseItem.add_Click({try{Invoke-CommandAction $(if($script:paused){'resume'}else{'disable'}) $null}catch{Show-Error $_.Exception.Message}})
-$endItem=$menu.Items.Add('End conversation');$endItem.add_Click({try{Invoke-CommandAction 'end' $null}catch{Show-Error $_.Exception.Message}})
+$pauseItem=$menu.Items.Add('Pause listening');$pauseItem.add_Click({try{Invoke-CommandAction $(if($script:paused){'resume'}else{'disable'}) $null 'tray'}catch{Show-Error $_.Exception.Message}})
+$endItem=$menu.Items.Add('End conversation');$endItem.add_Click({try{Invoke-CommandAction 'end' $null 'tray'}catch{Show-Error $_.Exception.Message}})
 $null=$menu.Items.Add('-');$exitItem=$menu.Items.Add('Exit listener');$exitItem.add_Click({$script:exitRequested=$true})
 $tray.ContextMenuStrip=$menu;$tray.add_DoubleClick({$nativeSettings.PerformClick()})
 function Persist { $persistent.paused=$script:paused;Write-JsonAtomic $statePath $persistent }
@@ -42,7 +43,7 @@ function Show-Error([string]$message){$script:lastError=$message;$tray.ShowBallo
 function Status {
  $tray.Text=if($script:paused){'Jarvis Pi: paused'}elseif($script:desired){'Jarvis Pi: voice requested'}else{'Jarvis Pi: listening'}
  $pauseItem.Text=if($script:paused){'Resume listening'}else{'Pause listening'}
- try{Write-JsonAtomic (Join-Path $dataRoot 'status.json') @{pid=$PID;state=$(if($script:paused){'paused'}else{'listening'});backend='pi-desktop';version='3.0.0';updated=[DateTime]::UtcNow.ToString('o');voiceActive=($script:call -and $script:call.phase -notin @('ended','failed'));voiceDesired=$script:desired;callId=$script:call.callId;voiceStateVerifiedAt=$lastStatusResult;pendingWorkers=$jobs.Count;lastAction=$script:lastAction;lastVoiceOutcome=$script:lastOutcome;lastError=$script:lastError;processedCommandCount=$script:processed;culture=$settings.recognizerCulture;wakePhrases=$settings.wakePhrases;monitor=$script:monitor;questionError=$script:queueError;intentSequence=$persistent.intentSequence}}
+ try{Write-JsonAtomic (Join-Path $dataRoot 'status.json') @{pid=$PID;state=$(if($script:paused){'paused'}else{'listening'});backend='pi-desktop';version='3.0.0';updated=[DateTime]::UtcNow.ToString('o');voiceActive=($script:call -and $script:call.phase -notin @('ended','failed'));voiceDesired=$script:desired;callId=$script:call.callId;voiceStateVerifiedAt=$lastStatusResult;pendingWorkers=$jobs.Count;lastAction=$script:lastAction;lastCommandSource=$script:lastCommandSource;invitationBlockedReason=$script:invitationBlockedReason;lastRecognition=$script:recognitionAudit;lastVoiceOutcome=$script:lastOutcome;lastError=$script:lastError;processedCommandCount=$script:processed;culture=$settings.recognizerCulture;wakePhrases=$settings.wakePhrases;monitor=$script:monitor;questionError=$script:queueError;intentSequence=$persistent.intentSequence}}
  catch [IO.IOException],[UnauthorizedAccessException]{if($script:lastError -ne 'Jarvis status file is locked; listening remains available.'){Show-Error 'Jarvis status file is locked; listening remains available.'}}
 }
 function Set-Paused([bool]$value){
@@ -71,8 +72,8 @@ function Voice-Request([string]$action,[string]$reply,[bool]$automatic=$false,[s
  $null=Start-Worker $request $reply $automatic
  return $request
 }
-function Invoke-CommandAction([string]$action,[string]$reply){
- $script:invitation=$null;$script:lastAction=$action;$script:processed++
+function Invoke-CommandAction([string]$action,[string]$reply,[string]$source="control"){
+ if($action -ne 'reload-settings'){$script:invitation=$null};$script:lastAction=$action;$script:lastCommandSource=$source;$script:processed++
  if($action -eq 'resume'){Set-Paused $false;if($reply){Write-JsonAtomic $reply @{ok=$true;action=$action;state='listening'}};return}
  if($action -eq 'reload-settings'){
   $previous=$settings;$script:settings=Read-JarvisSettings (Join-Path $appRoot 'settings.json')
@@ -109,8 +110,8 @@ try {
   if($script:invitation -and -not (Test-JarvisInvitationCurrent $script:invitation $persistent.intentId $persistent.intentSequence $script:lastSpeech $script:paused)){$script:invitation=$null}
   foreach($e in @(Get-Event -SourceIdentifier 'JarvisPiRecognized' -ErrorAction SilentlyContinue)){
    try{
-    $r=$e.SourceEventArgs.Result;$action=Get-JarvisAction $r;$audio=$r.Audio;$key=if($audio){[string]$audio.StartTime.Ticks+':'+$audio.AudioPosition.Ticks+':'+$audio.Duration.Ticks}else{[string]$e.EventIdentifier}
-    if(-not $script:paused -and $action -and $key -ne $lastRecognition){$lastRecognition=$key;$count=1;if($action -match '^toggle-([2-4])$'){$count=[int]$Matches[1];$action='toggle'};for($i=0;$i -lt $count;$i++){Invoke-CommandAction $action $null};Status}
+    $r=$e.SourceEventArgs.Result;$action=Get-JarvisAction $r -VoiceActive:([bool]($script:desired -or ($script:call -and $script:call.phase -notin @('ended','failed'))));$script:recognitionAudit=@{text=([string]$r.Text).Substring(0,[Math]::Min(256,([string]$r.Text).Length));confidence=[double]$r.Confidence;hypothesis=[string]$r.Semantics.Value;action=$action;at=[DateTime]::UtcNow.ToString("o")};$audio=$r.Audio;$key=if($audio){[string]$audio.StartTime.Ticks+':'+$audio.AudioPosition.Ticks+':'+$audio.Duration.Ticks}else{[string]$e.EventIdentifier}
+    if(-not $script:paused -and $action -and $key -ne $lastRecognition){$lastRecognition=$key;$count=1;if($action -match '^toggle-([2-4])$'){$count=[int]$Matches[1];$action='toggle'};for($i=0;$i -lt $count;$i++){Invoke-CommandAction $action $null 'speech'};Status}
    }catch{Show-Error $_.Exception.Message}
    finally{Remove-Event -EventIdentifier $e.EventIdentifier -ErrorAction SilentlyContinue}
   }
@@ -154,13 +155,10 @@ try {
         $script:invitation=Start-JarvisInvitationEndAttempt $invite $request
        }catch{$script:invitation=$null;Show-Error $_.Exception.Message}
       }
-     }elseif(-not $script:paused -and $settings.notificationsEnabled -and $packet.pendingCount -gt 0 -and -not $active -and $voiceJobs -eq 0){
+     }else{
       $last=[Math]::Max([double]$persistent.lastInvitation,[double]$packet.lastInvitation)
-      if([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()-$last -ge [double]$settings.invitationCooldownMinutes*60000 -and [JarvisPiPresence]::Unlocked() -and [JarvisPiPresence]::IdleSeconds() -lt [double]$settings.returnIdleSeconds){
-       # Any other active capture client defers automatic invitations. Unknown
-       # CoreAudio state throws and fails closed; no input or session is changed.
-       try{$foreign=@([JarvisPiPresence]::CaptureProcesses()|Where-Object {$_ -ne $PID});if($foreign.Count -eq 0){$persistent.lastInvitation=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();Persist;$script:desired=$true;$null=Voice-Request 'wake' $null $true}}catch{$script:queueError='Microphone ownership could not be verified; invitation deferred.'}
-      }
+      $script:invitationBlockedReason=Get-JarvisInvitationBlockReason @{paused=$script:paused;enabled=$settings.notificationsEnabled;active=[bool]$active;pendingWorkers=$voiceJobs;pendingCount=$packet.pendingCount;nowMs=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();lastInvitation=$last;cooldownMs=([double]$settings.invitationCooldownMinutes*60000);unlocked=[JarvisPiPresence]::Unlocked();idleSeconds=[JarvisPiPresence]::IdleSeconds();returnIdleSeconds=[double]$settings.returnIdleSeconds}
+      if(-not $script:invitationBlockedReason){$persistent.lastInvitation=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();Persist;$script:desired=$true;Voice-Request 'wake' $null $true}
      }
     }else{$script:queueError=$response.error}
    }elseif(-not $response.ok){Show-Error $response.error}

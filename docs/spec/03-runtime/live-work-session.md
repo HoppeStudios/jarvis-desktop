@@ -41,6 +41,29 @@ target session's current model and permission policy.
 
 ## Candidate and routing flow
 
+### Jarvis work-agent workflow
+
+The native voice model forwards every concrete task in full, including non-coding
+PC/app, research and coordination work. It waits for actual Host result feedback,
+summarizes the verified outcome and keeps clarifications in the same work target.
+Acknowledgement/running/queued receipts never count as completed work. Native
+target selection remains explicit; mentioning a chat in an investigative task
+does not itself retarget the call.
+
+Fresh managed Jarvis work chats use the selected account, GPT-6.1 Sol, `low`
+(Lightweight) and Fast requested. The task-owned workspace appends a versioned
+work-agent role without replacing existing customization. Native Live remains
+the speaking model and keeps its selected voice. This applies to newly opened
+calls; editing a file does not inject new instructions into an active call.
+
+Classification can use at most four accepted previous work entries from this
+same call and target (about 3 KB), with results only when verified available.
+This is current-call ledger data, not saved target history or new execution
+authority. Rejected/unknown requests, conversation-only operations, other targets
+and other calls are excluded. Oversized prior entries are explicitly omitted,
+not truncated; the bound worker retains its original task context. The complete
+current request still reaches the existing deterministic admission path unchanged.
+
 Each provider exposes only `delegate_to_work_session({ instruction })`. Main
 validates the tool name and arguments, freezes the call scope, registers a
 bounded operation identity, and returns a short `received / not_started`
@@ -53,7 +76,9 @@ receipt prevents classification and Host admission. This is not evidence that
 the remote provider processed the message or that a person heard it.
 
 A read-only one-shot classifier uses the selected work session's configured
-model with tools disabled. Its strict output is passed to deterministic
+model with tools disabled, preserving its explicit Fast preference through the
+Desktop/Native Pi catalog. An absent preference remains absent, not inferred.
+Its strict output is passed to deterministic
 routing. Conversation and status requests do not create turns. A clear
 constraint on the observed active turn may steer that exact turn. An explicit
 independent task uses the Host-owned queue. Ambiguous routing, stale turns, and
@@ -216,6 +241,14 @@ requires the manual matrix in the delivery plan.
   and user-message provenance.
 
 ## Validation references
+
+Spoken answers may use explicit ordinals or an unambiguous paraphrase of the
+actual pending question's options. The classifier resolves them to full offered
+labels; final Host validation still requires every question and rejects foreign
+labels. A native worker clarification is distinct from an external queue item.
+Live announces delivery only after successful native resolution, never after a
+received receipt or rejected candidate. Ambiguous, quoted, hypothetical or
+negated choices remain unanswered.
 
 The implementation and test evidence are tracked in
 [`../../implementation/live-work-evidence.md`](../../implementation/live-work-evidence.md).

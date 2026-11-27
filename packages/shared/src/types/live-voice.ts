@@ -14,6 +14,7 @@ export type LiveGreetingEvidence = {
 };
 
 /** Authenticated local control; media still belongs to the real main renderer. */
+export type LiveCallInput = { kind: "virtual-cable"; label: string };
 export type LiveAutomationControl = {
   requestId: string;
   action: "start" | "toggle" | "wake" | "new-chat" | "end";
@@ -29,11 +30,16 @@ export type LiveAutomationControl = {
   /** Automatic invitation deadline, 5–60 seconds after verified playback receipt. */
   presenceTimeoutSeconds?: number;
   expectedCallId?: string;
+  /** Cancel only the start request belonging to this same intent owner. */
+  expectedRequestId?: string;
+  /** Call-local capture selection; never changes the saved default. */
+  input?: LiveCallInput;
   /** Timeout of a verified automatic invitation, not manual End. */
   cleanupUnanswered?: boolean;
 };
 export type LiveAutomationRequest = {
   requestId: string;
+  input?: LiveCallInput;
   action: "start" | "cancel";
   workSessionId?: string;
   initialMuted?: boolean;
@@ -243,6 +249,7 @@ export type LiveCallView = {
   notice?: LiveError;
   workBinding?: LiveWorkBinding;
   workOperations?: LiveWorkOperationView[];
+  jarvisQueue?: { state: "ready" | "unavailable"; delivery: "pending" | "sent" | "not-sent" | "unknown" };
 };
 
 export type LiveWorkStopOperationResult = {
@@ -343,7 +350,7 @@ export type LiveMediaReport =
   | { callId: string; kind: "released" };
 
 export type LiveEndRequest =
-  | { callId: string; reason: LiveEndReason }
+  | { callId: string; reason: LiveEndReason; errorCode?: string }
   | { requestId: string; reason: "user-cancelled-start" };
 
 export type LiveDelegationRequest = {
@@ -370,6 +377,7 @@ export type LivePlaybackCursor = {
 
 export type LiveControlEvent =
   | { callId: string; kind: "release-media" }
+  | { callId: string; kind: "session-context"; actionId: string; content: string }
   | { callId: string; kind: "reject-delegation"; actionId: string; delegationId: string; reason: "EXECUTION_NOT_CONNECTED" }
   | { callId: string; kind: "work-receipt"; actionId: string; delegationId: string; receipt: LiveProviderReceipt }
   | { callId: string; kind: "work-navigation"; actionId: string; sessionId: string }

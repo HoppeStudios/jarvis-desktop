@@ -233,3 +233,62 @@ test("ensure-on preserves an existing manual call and explicit new-chat waits fo
  assert.equal(state.ended[0].request.callId,old);state.call=connected();await manager.complete(owner,{requestId,callId:state.call.callId});
  assert.equal((await started).state,"connected");
 });
+
+
+test("phone start forwards call-local input and rejects malformed selectors",async()=>{
+ const {state,manager}=harness();const requestId=randomUUID(), intentId=randomUUID();
+ const input={kind:"virtual-cable",label:"CABLE Output (VB-Audio Virtual Cable)"};
+ const promise=manager.control({requestId,action:"start",intentId,intentSequence:1,input});
+ await waitFor(()=>state.sent.length===1);assert.deepEqual(state.sent[0].request.input,input);
+ state.call=connected();await manager.complete(owner,{requestId,callId:state.call.callId});await promise;
+ for(const patch of [{input:{...input,label:""}},{input:{...input,extra:true}},{action:"end",input}])
+  assert.throws(()=>parseAutomationControl({requestId:randomUUID(),action:"start",...patch}));
+});
+
+test("request-scoped phone cancel cannot end another caller or newer call",async()=>{
+ const h=harness();const requestId=randomUUID(),intentId=randomUUID();
+ const started=h.manager.control({requestId,action:"start",intentId,intentSequence:1});
+ await waitFor(()=>h.state.sent.length===1);
+ await assert.rejects(h.manager.control({requestId:randomUUID(),action:"end",intentId:randomUUID(),intentSequence:1,expectedRequestId:requestId}),{errorCode:"LIVE_STALE_CALL"});
+ assert.equal(h.state.ended.length,0);
+ h.state.call=connected();const callId=h.state.call.callId;
+ await h.manager.complete(owner,{requestId,callId});await started;
+ h.state.call=connected();
+ await assert.rejects(h.manager.control({requestId:randomUUID(),action:"end",intentId,intentSequence:2,expectedRequestId:requestId}),{errorCode:"LIVE_STALE_CALL"});
+ assert.equal(h.state.ended.length,0);
+ h.state.call={...connected(),callId};
+ assert.equal((await h.manager.control({requestId:randomUUID(),action:"end",intentId,intentSequence:3,expectedRequestId:requestId})).state,"ended");
+ assert.equal(h.state.ended[0].request.callId,callId);
+});
+
+test("phone cancels only its own pending start and rejects late completion",async()=>{
+ const h=harness();const requestId=randomUUID(),intentId=randomUUID();
+ const started=h.manager.control({requestId,action:"start",intentId,intentSequence:1});await waitFor(()=>h.state.sent.length===1);
+ const result=await h.manager.control({requestId:randomUUID(),action:"end",intentId,intentSequence:2,expectedRequestId:requestId});
+ assert.equal(result.state,"cancelled");assert.equal((await started).state,"cancelled");
+ assert.equal(h.state.ended[0].request.requestId,requestId);
+ assert.equal((await h.manager.complete(owner,{requestId,callId:randomUUID()})).accepted,false);
+});
+
+test("phone input resolves one exact capture device without touching default microphone",async()=>{
+ const {requestCallMicrophone}=await import("../src/features/voice/live/call-input.ts");
+ const label="CABLE Output (VB-Audio Virtual Cable)",input={kind:"virtual-cable",label};let captures=0;
+ const device={kind:"audioinput",label,deviceId:"cable-1"};
+ for(const [devices,code] of [[[],"A0_L0_C0"],[[{...device,label:""}],"A1_L0_C0"],[[{...device,label:"Physical mic"}],"A1_L1_C0"],[[device,{...device,deviceId:"cable-2"}],"A2_L2_C2"],[[{...device,deviceId:"default"}],"A1_L1_C0"]]){
+  await assert.rejects(requestCallMicrophone({enumerateDevices:async()=>devices,getUserMedia:async()=>{captures++;}},input),{errorCode:`LIVE_INPUT_ENUM_${code}`});
+ }
+ const stream={};assert.equal(await requestCallMicrophone({enumerateDevices:async()=>[device],getUserMedia:async constraints=>{captures++;assert.equal(constraints.audio.deviceId.exact,"cable-1");return stream;}},input),stream);
+ assert.equal(captures,1);
+});
+
+test("phone device discovery waits for Main reservation and never captures after rejected prepare",async()=>{
+ const {requestCallMicrophone}=await import("../src/features/voice/live/call-input.ts");
+ const input={kind:"virtual-cable",label:"CABLE Output (VB-Audio Virtual Cable)"};
+ let grant;const reserved=new Promise(resolve=>{grant=resolve;});let enumerations=0,captures=0;
+ const stream={};const media={enumerateDevices:async()=>{enumerations++;return[{kind:"audioinput",label:input.label,deviceId:"owned-cable"}];},getUserMedia:async constraints=>{captures++;assert.equal(constraints.audio.deviceId.exact,"owned-cable");return stream;}};
+ const pending=requestCallMicrophone(media,input,reserved);await Promise.resolve();assert.equal(enumerations,0);assert.equal(captures,0);
+ grant();assert.equal(await pending,stream);assert.equal(enumerations,1);assert.equal(captures,1);
+ const refused=Object.assign(new Error("prepare refused"),{code:"LIVE_STALE_CALL"});
+ await assert.rejects(requestCallMicrophone(media,input,Promise.reject(refused)),error=>error===refused);
+ assert.equal(enumerations,1);assert.equal(captures,1);
+});

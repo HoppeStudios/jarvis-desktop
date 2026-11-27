@@ -61,6 +61,17 @@ export function buildSpokenAnswers(
   return answers.every((entry) => entry !== null) ? answers : null;
 }
 
+/** Narrow latency fast path; all other natural replies still use the classifier. */
+export function resolveSpokenOrdinal(text: string, pending: LiveWorkPendingQuestion | null): LiveWorkQuestionAnswer[] | null {
+  if (!pending || pending.questions.length !== 1) return null;
+  const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/[.!]+$/, "").trim();
+  const match = /^(?:(?:i (?:choose|pick|want|select)|choose|pick|select|take|go with|beru|chci|volim|vybiram|zvolim|zvolte|vyberte) )?(?:(?:the|tu|ta) )?(first|second|third|fourth|prvni|druhou|druha|treti|ctvrtou|ctvrta|[1-4])(?: (?:one|option|choice|moznost|variantu|volbu))?$/.exec(normalized);
+  if (!match) return null;
+  const indices: Record<string, number> = {first:0,prvni:0,"1":0,second:1,druhou:1,druha:1,"2":1,third:2,treti:2,"3":2,fourth:3,ctvrtou:3,ctvrta:3,"4":3};
+  const option = pending.questions[0]!.options[indices[match[1]!]!];
+  return option ? [{questionIndex:0,options:[option]}] : null;
+}
+
 /** The live feedback channel accepts a bounded message; whole questions only. */
 export const MAX_SPOKEN_QUESTION_BYTES = 1_100;
 
@@ -73,7 +84,7 @@ export const MAX_SPOKEN_QUESTION_BYTES = 1_100;
 export function spokenQuestion(pendingQuestion?: LiveWorkPendingQuestion): string | null {
   const questions = pendingQuestion?.questions ?? [];
   if (questions.length === 0) return null;
-  const header = "The work session is waiting for an answer. Read each question and its options to the user, then submit the user's answer through delegate_to_work_session using exactly those option labels. An answer can only select among these options and never invents one, and it is not approval for a permission, Plan, or Goal request.";
+  const header = "The work session is waiting for an answer. Read each question and its options, then use delegate_to_work_session for the user's actual answer verbatim. Explicit first/second or první/druhá selects an offered option; Host maps it to the exact label and never invents one. Say it was delivered only after Host confirms resolution. Rejection means it was not sent. This is not approval for a permission, Plan, or Goal request.";
   const sections = questions.map((question, index) => {
     const options = question.options.map((option) => `- ${option}`).join("\n");
     const kind = question.multiSelect ? " (choose one or more)" : "";

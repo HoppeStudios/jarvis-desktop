@@ -1,5 +1,20 @@
 # Live Voice v1
 
+## Work classifier startup
+
+Live work intent classification resolves only the selected account/model binding
+and request authentication. It uses the same binding resolver as coding turns,
+with low reasoning requested and normal capability clamping. It must not open a
+shell, connect MCP servers, enumerate skills/subagents, load workspace instructions
+or modify a bound session's workspace/auth registrations. Coding-turn startup
+still performs those operations after normal admission.
+
+Provider setup shares the coordinator's bounded classification deadline rather
+than an independent two-second agent-startup deadline. Classifier diagnostics
+record only a stage and a bounded error code; prompts, generated text, credentials
+and provider headers do not enter those diagnostics. Invalid/ambiguous requests
+retain the existing fail-closed admission behavior.
+
 ## Scope
 
 Live Voice is an optional, app-owned real-time audio path. It is separate
@@ -223,3 +238,72 @@ compatible model, account and endpoint. Real-account calls, microphone
 permission prompts and hardware playback must be reported separately from
 automated fixture results; they may incur provider usage and require explicit
 user authorization.
+
+### Queue startup and final results
+
+Jarvis startup reads all queue pages under one bounded deadline, preserves a saved
+briefing cursor and otherwise prioritizes unanswered questions over informational
+reports. A partial or invalid page sequence is unavailable rather than empty.
+Only one selected item enters realtime context. The shared Inbox remains unchanged.
+
+Work result projection excludes explicitly signed Responses commentary, allowing
+the existing bounded history retry to wait for the actual answer. Unsigned provider
+text remains compatible. Wake status records the last grammar recognition and the
+command source (speech, tray or control) for diagnosing unexpected call endings;
+it does not record general microphone audio or unrestricted dictation.
+
+### Linked-chat answer delivery
+
+The reviewed MCP agent/steer operation reuses the existing IPC handler. Linked Codex input must identify the exact current turn, and native turn/steer enforces that identity atomically. Actual asynchronous question replies may be delivered as ordinary text to that source; this is message delivery, not native form submission. Queue answer recording requires a successful receipt and source readback.
+
+### Native queue continuation
+
+The first genuine deduplicated nonempty user transcript (including a partial
+chunk, because native finals can be delayed until hangup) in a Jarvis call sends the saved bounded
+queue snapshot through a typed owner-bound session-context control and the native
+Codex session.context.append speakable channel. Initial POST instructions alone
+are not evidence of queue presentation. A local send receipt appears in call
+status and is separate from actual speech or answer delivery. Assistant greetings
+do not trigger the continuation; failure leaves the queue unresolved and the call
+connected.
+
+Automatic invitations wait for the actual selected-runtime call/control state,
+an unlocked active PC, pending items, and the existing thirty-minute cooldown.
+Unrelated Windows/Discord microphone sessions do not prove a Jarvis call exists.
+They are never stopped or changed. The existing media permission and ownership
+guards remain.
+
+A delegation made while briefing a queue item carries its bounded Main-owned
+item context separately from the original spoken request. The classifier treats
+an actual reply as coordinator work, not as an unrelated word or a native ask in
+the coordinator itself. The same item identity accompanies the real worker prompt;
+the worker rereads current revisions and verifies source delivery before recording
+anything. Presence and ambiguous replies remain non-answers.
+
+
+## Phone input and request-scoped cancellation
+
+Authenticated `voice/control` start accepts optional `input` with
+`{kind:"virtual-cable",label:string}`. Main validates the bounded exact selector
+and passes it to its real renderer. Only one exact non-default audio capture
+match is accepted; absent/ambiguous/hidden devices fail without a physical-mic
+fallback. Only that call uses the resolved device. Saved microphone settings,
+account/voice and other calls are unchanged.
+
+Virtual-cable enumeration waits for Main's microphone reservation to settle.
+Failure to reserve performs neither enumeration nor capture; the normal
+gesture-based default microphone path is unchanged. Startup failures retain
+only a bounded `LIVE_*` code in the native call record, never raw error text.
+
+An end with `expectedRequestId` requires the original start's `intentId`. It
+cancels only that pending start, or its verified completed call under the same
+renderer identity. Unknown, stale, different-owner and newer-call cases fail
+closed. This does not grant permission to adopt another active call.
+
+The intent classifier requests the session's existing Fast preference on a
+supported wire; low reasoning and admission checks remain. Diagnostics contain
+numeric provider/completion durations and the Fast-request flag, never user text.
+Call termination diagnostics contain only call identity and the bounded reason.
+
+
+Native queue speakable content is conservatively bounded to 1 KiB UTF-8. It contains the real question/choices or report without source identifiers; Main retains the complete bounded origin and revision for answer routing. An oversized item requests an exact worker fetch instead of silently truncating human options. This separates voice presentation from delivery metadata and avoids the observed native content rejection.
