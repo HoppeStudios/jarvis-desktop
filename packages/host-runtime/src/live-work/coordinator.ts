@@ -450,7 +450,7 @@ export class LiveWorkCoordinator {
       return null;
     }).finally(() => call.classifiers.delete(candidate.providerRequestId));
     if (call.closed) return;
-    const intent = parseLiveWorkIntent(rawIntent);
+    let intent = parseLiveWorkIntent(rawIntent);
     if (!intent) {
       call.ledger.update(candidate.providerRequestId, {
         intent: { kind: "clarify", question: "I could not confirm what you want me to do. Please clarify." },
@@ -464,6 +464,12 @@ export class LiveWorkCoordinator {
       return;
     }
     if (call.closed) return;
+    // A bound Agent already owns the native project/session tools. Preserve the
+    // user's whole creation request there instead of ending at a panel choice.
+    // Unbound Live retains its project-selection flow; no target is invented.
+    if (intent.kind === "create-session" && call.hasWorkTarget) {
+      intent = { kind: "new-task", relationToActive: "independent", explicitRepeat: false };
+    }
     call.ledger.update(candidate.providerRequestId, { intent });
     if (controlLane && !isControlIntent(intent) && intent.kind !== "conversation" && intent.kind !== "clarify") {
       this.reject(call, candidate.providerRequestId, "I could not confirm a control request. Please clarify what you want me to stop or check.");

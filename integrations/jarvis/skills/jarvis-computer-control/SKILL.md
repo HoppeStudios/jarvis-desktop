@@ -11,6 +11,7 @@ literal clarifications. Another wake name is unnecessary during a connected call
 | Requested state | Preferred route |
 | --- | --- |
 | Pi chat names, projects, opening a chat | `jarvis-pi-switch-chat`; prefer native `session/find`, then `session/open` with its exact returned ID |
+| Creating a new chat in a workspace | Discover native `pi_project_list` and `pi_session_create` (`project/list`, `session/create`); use the actual existing project's path |
 | Working/finished/waiting chats | `jarvis-pi-status`; native current status and Inbox, not title timestamps |
 | User questions and reports | `jarvis-pi-queue`; actual origin and successful answer-delivery receipt |
 | GitHub, mail, calendar or another connected service | The service's own connector/API when it covers the actual operation |
@@ -33,6 +34,19 @@ Sending messages or other consequential actions still need the actual task autho
 Pi and Codex IDs are different namespaces. Navigation is not voice transfer.
 Preserve existing calls and selected account/voice. Never start another CLI agent
 merely to make it appear that the visible Desktop chat was controlled.
+
+An explicit new-chat request authorizes creation; a title lookup alone does not.
+Resolve the requested workspace against native registered projects (names may be
+duplicated). Use the actual path, not a project ID or a guessed directory. For
+"here/this workspace", use the verified requesting work session's projectPath,
+not an unrelated globally selected project. Ask only for a real ambiguity.
+Create through `pi_session_create` with `projectPath` and the requested title/mode;
+then verify its returned ID and persisted projectPath through `session/get` before
+claiming success. Keep the existing default account/model policy. Do not start
+work in, open or transfer voice to the new chat unless that was also requested.
+Before retrying an uncertain creation, look for its actual receipt/new session to
+avoid duplicates. A missing named tool calls for normal tool discovery or the
+reviewed `session/create` operation, not a claim that chat creation is impossible.
 
 An unavailable Pi MCP endpoint is a capability problem, not proof that no chat
 exists. Inspect the current private endpoint metadata through the installed adapter

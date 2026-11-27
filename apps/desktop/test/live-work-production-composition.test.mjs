@@ -30,6 +30,28 @@ test("a clear ordinal resolves the bound native ask once and delivery refusal ne
   assert.match(updates.at(-1).operation.summary,/could not be delivered/);
 });
 
+test("spoken chat creation reaches the existing AgentHost with its full workspace request", async (t) => {
+  const server = await createServer({
+    root: fileURLToPath(new URL("..", import.meta.url)), configFile: false,
+    resolve: { alias: { "@pi-desktop/host-runtime": fileURLToPath(new URL("../../../packages/host-runtime/src/index.ts", import.meta.url)) } },
+    server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom", optimizeDeps: { noDiscovery: true, include: [] },
+  });
+  t.after(() => server.close());
+  const fixture = await createProductionWorkHarness(t, server, { intent: { kind: "create-session", title: "Výzkum" } });
+  fixture.openCall("create-call");
+  const request = { callId: "create-call", workBindingRevision: 3, workSessionId: WORK_SESSION_ID,
+    providerRequestId: "create-request", instruction: "Vytvoř nový chat Výzkum ve workspace Omega. Nezapínej další hovor." };
+  const receipt = async () => ({ status: "sent", deliveryId: "create-receipt" });
+  await fixture.bridge.receiveCandidate(request, receipt);
+  await fixture.bridge.receiveCandidate(request, receipt);
+  assert.equal(fixture.prompts.length, 1);
+  assert.equal(fixture.prompts[0].content, request.instruction);
+  assert.equal(fixture.persistedMessages[0].content, request.instruction);
+  assert.equal(fixture.updates.at(-1).operation.workSessionId, WORK_SESSION_ID);
+  assert.equal(fixture.updates.at(-1).operation.execution, "running");
+  assert.equal(fixture.updates.at(-1).operation.selections, undefined);
+});
+
 test("production Live WorkBridge reaches AgentHost admission, explicit queue, and exact terminal result", async (t) => {
   const server = await createServer({
     root: fileURLToPath(new URL("..", import.meta.url)),
