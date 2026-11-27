@@ -25,6 +25,10 @@ export function createLiveCallWorkHandlers(deps: Dependencies) {
         throw liveError("LIVE_PROTOCOL_ERROR");
       }
       const id = request.delegationId.trim();
+      if (slot.awaitHumanBeforeWork && !slot.userTurnCount) {
+        await deliverReceipt(slot, id, { status: "rejected", providerRequestId: id, code: "LIVE_WORK_CLARIFICATION_REQUIRED" }, deps);
+        return { accepted: false };
+      }
       const prior = slot.delegationInstructions.get(id);
       if (prior !== undefined) {
         if (prior !== request.instruction) throw liveError("LIVE_PROTOCOL_ERROR");

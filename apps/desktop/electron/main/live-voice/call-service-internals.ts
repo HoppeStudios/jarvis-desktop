@@ -97,6 +97,7 @@ export type Slot = {
   lastUserSpeechAt?: number;
   lastUserTurnAt?: number;
   userTurnCount?: number;
+  awaitHumanBeforeWork?: boolean;
   userTurnIds?: Set<string>;
   jarvisQueueContext?: { content: string; replyContext?: string; state: "ready" | "unavailable"; delivery: "pending" | "sent" | "not-sent" | "unknown" };
   jarvisQueueDispatched?: boolean;
@@ -158,6 +159,7 @@ export function validatePrepareRequest(request: LivePrepareRequest): void {
     throw liveError("LIVE_PROTOCOL_ERROR");
   }
   if (request.shareSelectedSessionContext !== undefined && typeof request.shareSelectedSessionContext !== "boolean") throw liveError("LIVE_PROTOCOL_ERROR");
+  if (request.awaitHumanBeforeWork !== undefined && typeof request.awaitHumanBeforeWork !== "boolean") throw liveError("LIVE_PROTOCOL_ERROR");
   if (request.workTarget !== undefined && (
     !request.workTarget || typeof request.workTarget.workSessionId !== "string" ||
     !request.workTarget.workSessionId.trim() || request.workTarget.workSessionId.length > 256

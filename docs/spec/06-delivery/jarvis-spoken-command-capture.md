@@ -45,16 +45,28 @@ as a Codex thread ID. No credential/capability copy, direct database mutation or
 independent CLI execution is used. Account/model and permission handling remain
 with the reviewed shared owner. An accepted real turn ID proves admission only.
 
-Text admission and completion can be inspected through the native shared owner.
+Text admission and completion are inspected through the native shared owner.
 The helper never creates a Windows speech synthesizer or substitutes a local
-voice. The selected native Live voice/account and existing queue workflow remain
-unchanged. A native call opened with an existing work session has an empty call
-operation ledger; it cannot automatically speak a task submitted beforehand via
-external agent/prompt. The current reviewed control plane exposes no general
-native speak-result or append-user-text operation. Automatic native reading of
-these captured tasks therefore remains unimplemented until the application adds
-an explicit task-adoption/result-delivery contract. Navigation or opening a call
-is not reported as successful native result speech.
+voice. This candidate adds a restricted native `resultSource` contract to
+`voice/control`: exact session/turn IDs, matching work target, start/wake only,
+no fresh coordinator, greeting, arbitrary speech text or fabricated delegation.
+Main reads native status and at most 30 messages, verifies the idle actual shared
+Codex owner and complete same-turn assistant result, and bounds the excerpt to
+700 UTF-8 bytes. Other selected adapters are refused without changing settings.
+The selected native Live binding reads this quoted result through its actual
+session context channel. The call remains open for the human; tool dispatch is
+rejected until an actual user transcript. Report instructions are never authority.
+
+The helper attempts one direct result call only for the unchanged explicit
+capture intent. It waits for an existing call and never adopts/rebinds it.
+End/Pause/new intent cancels this immediate path, leaving the report in the normal
+shared Inbox. A private at-most-once announcement claim precedes native startup.
+Uncertain, interrupted or failed playback never automatically repeats. Native
+success requires matching transcript, measured audio, drained playback, completed
+provider turn, running AudioContext and the exact connected work binding. The
+receipt does not mark the Inbox reviewed. Opening a call or merely sending a
+context packet is not successful speech. An older application lacks the declared
+capability; deployment requires both the reviewed application and helper update.
 
 Answer handoff preserves the literal reply separately from any normalization,
 scopes ordinals to the current question and keeps contradictory clarifications
@@ -85,7 +97,7 @@ identity are verified after restart. No desktop restart or rollback install occu
 - Installer `-ValidateOnly`, then reviewed idle installation and read-only native
   settings/call/listener/Startup verification.
 - Human acceptance: speak a Czech full command immediately after the wake; confirm
-  its exact text/accepted turn in the actual Codex-owned session, Windows voice preservation, ending,
+  its exact text/accepted turn in the actual Codex-owned session, selected native voice preservation, ending,
   rapid repeated wake, Pause and active-call protection. Do not start an unsolicited
   live call merely to claim this gate passed. File-rendered Windows speech is not
   a human listening test.

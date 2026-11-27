@@ -35,7 +35,7 @@ def execute(client,request,root,_unused=None):
     if not current() or not idle():return {'state':'superseded','taskDelivery':'cancelled','taskSessionId':session}
     admission=client.invoke('agent/prompt',[{'sessionId':session,'content':text,'messageId':command_id}])
     if not isinstance(admission,dict) or admission.get('accepted') is not True or not admission.get('turnId'):raise RuntimeError('Admission unconfirmed; do not retry automatically.')
-    result={'state':'text-admitted','taskDelivery':'accepted','taskSessionId':session,'taskTurnId':admission['turnId'],'requestId':command_id,'source':'codex-shared'}
+    result={'state':'text-admitted','taskDelivery':'accepted','taskSessionId':session,'taskTurnId':admission['turnId'],'requestId':command_id,'source':'codex-shared','intentId':request['intentId'],'intentSequence':request['intentSequence']}
     write_receipt(receipt_path,result);return result
 
 def poll(client,root):
@@ -55,5 +55,29 @@ def poll(client,root):
             answers=[m for m in detail.get('messages',[]) if m.get('role')=='assistant' and m.get('turnId')==value['taskTurnId'] and m.get('status')=='complete' and isinstance(m.get('content'),str)]
             if not answers:continue
             value.update(state='text-finished',report=answers[-1]['content'][:16000]);write_receipt(path,value)
-        if value.get('state')=='text-finished':reports.append({'requestId':value['requestId'],'taskSessionId':value['taskSessionId'],'text':value['report']})
+        if value.get('state')=='text-finished':reports.append({'requestId':value['requestId'],'taskSessionId':value['taskSessionId'],'taskTurnId':value['taskTurnId'],'intentId':value.get('intentId'),'intentSequence':value.get('intentSequence'),'text':value['report']})
     return reports
+
+
+def brief(client,request,root):
+    command_id=str(uuid.UUID(request['capturedResultRequestId']))
+    ledger=root/'data/captured-tasks'/(command_id+'.json')
+    value=json.loads(ledger.read_text(encoding='utf-8'))
+    state=json.loads((root/'data/pi-state.json').read_text(encoding='utf-8-sig'))
+    if (state.get('paused') or state.get('intentId')!=request['intentId'] or state.get('intentSequence')!=request['intentSequence'] or
+        value.get('state')!='text-finished' or value.get('intentId')!=request['intentId'] or value.get('intentSequence')!=request['intentSequence']-1):
+        return {'state':'superseded'}
+    announcement=ledger.with_name(ledger.stem+'.announced.json')
+    if announcement.exists():return {'state':'superseded'}
+    status=client.invoke('voice/status')
+    if status.get('pendingRequestId') or (status.get('call') or {}).get('phase','ended') not in ('ended','failed'):
+        return {'state':'already-on'}
+    if status.get('resultBriefingSupported') is not True:raise RuntimeError('Native result briefing is unavailable.')
+    # Claim before opening media; uncertain/interrupted playback never auto-repeats.
+    with announcement.open('x',encoding='utf-8') as file:json.dump({'state':'attempting','requestId':request['requestId']},file)
+    result=client.invoke('voice/control',[{'requestId':request['requestId'],'action':'wake','intentId':request['intentId'],
+        'intentSequence':request['intentSequence'],'initialMuted':False,'workSessionId':value['taskSessionId'],
+        'resultSource':{'sessionId':value['taskSessionId'],'turnId':value['taskTurnId']}}],True)
+    write_receipt(announcement,{'state':'played' if result.get('resultBriefingPlayed') is True else 'deferred',
+        'requestId':request['requestId'],'callId':result.get('callId'),'deferredUntil':time.time()*1000+1800000})
+    return result

@@ -51,7 +51,19 @@ function Complete-JarvisCapturedCommand($job,$response) {
 # through Windows speech. Keep these adapters for existing listener wiring.
 function Test-JarvisCapturedSpeechActive { return $false }
 function Stop-JarvisCapturedSpeech([string]$action) { return $action }
-function Update-JarvisCapturedSpeech($packet) { return }
+function Update-JarvisCapturedSpeech($packet) {
+ if($script:paused -or -not $settings.captureCommands -or -not $packet.resultBriefingSupported -or $packet.pendingRequestId -or
+   ($packet.call -and $packet.call.phase -notin @('ended','failed')) -or
+   @($jobs|Where-Object {$_.request.operation -in @('transcribe','voice','captured-task')}).Count){return}
+ # Only the unchanged explicit capture intent may start its result call. A later
+ # End/Pause/wake leaves the actual report in the shared queue for normal review.
+ $report=@($packet.captureReports|Where-Object {$_.intentId -ceq $persistent.intentId -and $_.intentSequence -eq $persistent.intentSequence})|Select-Object -First 1
+ if(-not $report){return}
+ $persistent.intentSequence=[long]$persistent.intentSequence+1
+ $persistent.lastInvitation=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();Persist
+ $script:desired=$true;$script:invitation=$null
+ $null=Start-Worker @{operation='voice';action='wake';requestId=[guid]::NewGuid().ToString();intentId=$persistent.intentId;intentSequence=$persistent.intentSequence;capturedResultRequestId=$report.requestId} $null $false
+}
 
 function Update-JarvisCaptureWorker($job,[datetime]$now) {
  if($job.process.HasExited){return}

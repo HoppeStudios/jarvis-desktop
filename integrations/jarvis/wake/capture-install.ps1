@@ -43,6 +43,9 @@ foreach($entry in @(@('wake.ps1','wake.ps1'),@('configuration.ps1','Pi/wake/conf
   $text=Replace-One $text '        return status' "        try:`n            from captured_task import poll as capture_poll`n            status['captureReports'] = capture_poll(client,root)`n        except (OSError,ValueError,RuntimeError):`n            status['captureError'] = 'Captured text task status is unavailable.'`n        return status"
  }
  if($path.EndsWith('.ps1')){$tokens=$null;$errors=$null;$null=[Management.Automation.Language.Parser]::ParseInput($text,[ref]$tokens,[ref]$errors);if($errors.Count){throw ('Invalid capture integration: '+$entry[0])}}
+ if($entry[0] -eq 'desktop_control.py' -and -not $text.Contains("request.get('capturedResultRequestId')")){
+  $text=Replace-One $text "    payload = {key:request[key] for key in ('requestId', 'action', 'intentId', 'intentSequence')}" "    if request.get('capturedResultRequestId'):`n        if action!='wake':raise ValueError('Invalid result action.')`n        from captured_task import brief`n        return brief(client,request,root)`n    payload = {key:request[key] for key in ('requestId', 'action', 'intentId', 'intentSequence')}"
+ }
  $patches[$path]=$text
 }
 $settingsPath=Join-Path $root 'settings.json';$settingsBefore=[IO.File]::ReadAllText($settingsPath)

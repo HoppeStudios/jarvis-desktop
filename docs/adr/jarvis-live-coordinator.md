@@ -2,6 +2,19 @@
 
 Status: Implementation candidate
 
+## Completed result briefing
+
+The capture workflow uses an additive restricted result delivery contract, not
+adoption into a fabricated call operation ledger. Authenticated `voice/control`
+accepts only actual source session/turn IDs and Main re-reads the complete native
+shared-Codex result before starting media. Only Main supplies bounded quoted text
+to the renderer. Existing call ownership, selected binding, intents, cancellation,
+microphone leases and independent approvals stay authoritative. The real Codex
+session context channel requests speech; no human utterance or provider delegation
+ID is invented. Work remains rejected until a real human transcript. Playback
+requires separate transcript/audio/turn/drain evidence and never resolves Inbox
+items. See the spoken-command spec and E2E-1176 for deployment and acceptance limits.
+
 ## Decision
 
 Keep Codex Mini's helper in `jarvis-codex` and the Pi Desktop integration in

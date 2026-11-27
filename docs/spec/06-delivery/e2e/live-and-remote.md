@@ -15,10 +15,17 @@
   turn result. Verify no Windows speech is created and the native voice/account
   remain unchanged. Repeat with rapid toggle, Pause, wrong source,
   stale intent, missing native ASR dependency and uncertain admission.
-- **Expected:** Full actual text, no native call start for captured work, no
+- **Expected:** Full actual text, no native call start during task admission, no
   unrelated draft/work mutation, no duplicate dispatch or fabricated receipt.
   No local reply voice is substituted. Startup,
   paused state, shared queue and selected native account/voice are preserved.
+- **Result briefing:** With matching app/helper versions, completion of the same
+  unchanged explicit capture intent starts one native result call while idle.
+  Verify actual source IDs, selected account/voice, measured matching speech and
+  no task execution before human input. Repeat with another active call, End,
+  Pause, stale/missing source, unsupported adapter, repeated request and interrupted
+  playback. Generic greetings/dispatch receipts must not count as result speech;
+  uncertain attempts never replay automatically and Inbox items stay pending.
 - **Automation/evidence:** `test-capture.mjs`, `test-capture.ps1`, Python worker
   tests, real SAPI retained-audio fixture, copied-runtime native loading, installed
   ASR smoke test, native shared-Codex `JARVIS_CAPTURE_OK` receipt/result and

@@ -460,6 +460,21 @@ export class CodexChatBridge implements RemoteBackend {
     try { return await task; } finally { if (this.linking.get(id) === task) this.linking.delete(id); }
   }
 
+  /** Read only an already-bound latest terminal result, without creating links. */
+  async readCompletedResultSource(sessionId: string, turnId: string): Promise<Native> {
+    await this.ensure();
+    const parsed = parseRemoteSessionId(sessionId);
+    const threadId = this.aliases.get(sessionId)?.threadId ?? (parsed?.hostKey === HOST ? parsed.hostSessionId : undefined);
+    if (!threadId) throw unsupported();
+    const state = await this.request("thread/read", { threadId, includeTurns: false });
+    if (state.thread?.status?.type === "active") throw unavailable("Result task is still working");
+    const turns = await this.request("thread/turns/list", { threadId, limit: 1, sortDirection: "desc", itemsView: "notLoaded" });
+    const turn = turns.data?.[0];
+    if (turn?.id !== turnId || turn.status !== "completed") throw unavailable("No completed result for this turn");
+    const entries = await this.request("thread/items/list", { threadId, limit: 30, sortDirection: "desc" });
+    return { id: turn.id, status: turn.status, items: (entries.data ?? []).filter((entry: Native) => entry.turnId === turnId).map((entry: Native) => entry.item) };
+  }
+
   async invoke(channel: string, args: readonly unknown[]): Promise<unknown> {
     await this.ensure();
     const first = args[0] as any;

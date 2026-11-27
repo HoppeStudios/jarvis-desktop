@@ -84,6 +84,10 @@ def execute(client, request, root):
     action = request.get('action')
     if action not in ('wake', 'end', 'new-chat'):
         raise ValueError('Unknown voice action.')
+    if request.get('capturedResultRequestId'):
+        if action!='wake':raise ValueError('Invalid result action.')
+        from captured_task import brief
+        return brief(client,request,root)
     payload = {key:request[key] for key in ('requestId', 'action', 'intentId', 'intentSequence')}
     if action != 'end':
         payload.update(freshCoordinator=True, initialMuted=request.get('initialMuted', False),

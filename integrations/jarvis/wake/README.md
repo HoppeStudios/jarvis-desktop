@@ -50,8 +50,14 @@ Optional [complete spoken commands](../../../docs/spec/06-delivery/jarvis-spoken
 retain the addressed utterance and transcribe it locally after the wake. They
 submit actual text through the installed shared adapter to a verified Codex-owned
 chat. The selected native Live voice/account remain unchanged; Windows reply
-speech is not used. Automatic native reading of externally submitted task results
-needs an application contract that is not currently exposed.
+speech is not used. This candidate adds native result briefing by verified source
+session/turn IDs. It requires the matching reviewed Pi application update; an
+older app explicitly lacks the capability and never falls back to another voice.
+The same capture intent may open one result call after completion while idle.
+Another call is preserved; End/Pause/newer intent suppresses this direct start.
+Automatic playback is acknowledged only after matching transcript, measured audio,
+completed provider turn and drained playback. The shared Inbox stays unresolved
+until actual acknowledgement; an attempted/interrupted report is never auto-repeated.
 Enable through the reviewed `capture-install.ps1`
 with a locally prepared, hash-pinned runtime config; no account data belongs in
 that source repository. Tray settings then expose capture, language, silence,

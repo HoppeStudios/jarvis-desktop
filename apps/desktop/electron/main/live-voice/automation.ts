@@ -16,7 +16,7 @@ function validGreetingEvidence(raw: unknown): boolean {
 export function parseAutomationControl(raw: unknown): LiveAutomationControl {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
   const v = raw as Record<string, unknown>;
-  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "freshCoordinator", "initialMuted", "presenceGreeting", "expectedCallId", "intentId", "intentSequence", "cleanupUnanswered", "presenceTimeoutSeconds", "input", "expectedRequestId"].includes(k)) ||
+  if (Object.keys(v).some(k => !["requestId", "action", "workSessionId", "resultSource", "freshCoordinator", "initialMuted", "presenceGreeting", "expectedCallId", "intentId", "intentSequence", "cleanupUnanswered", "presenceTimeoutSeconds", "input", "expectedRequestId"].includes(k)) ||
     !uuid(v.requestId) || !["start", "toggle", "wake", "new-chat", "end"].includes(String(v.action)) ||
     ((v.intentId !== undefined || v.intentSequence !== undefined) && (!uuid(v.intentId) || !Number.isSafeInteger(v.intentSequence) || Number(v.intentSequence) < 1)) ||
     (v.workSessionId !== undefined && (typeof v.workSessionId !== "string" || !v.workSessionId.trim() || v.workSessionId.length > 256)) ||
@@ -31,6 +31,14 @@ export function parseAutomationControl(raw: unknown): LiveAutomationControl {
     (v.cleanupUnanswered !== undefined && (v.cleanupUnanswered !== true || v.action !== "end" || !uuid(v.expectedCallId))) ||
     (v.freshCoordinator !== undefined && typeof v.freshCoordinator !== "boolean") ||
     (v.freshCoordinator === true && v.workSessionId !== undefined)) throw fail("INVALID_PARAMS");
+  if (v.resultSource !== undefined) {
+    const source = v.resultSource as Record<string, unknown>;
+    if (!source || typeof source !== "object" || Array.isArray(source) ||
+      Object.keys(source).length !== 2 || Object.keys(source).some(key => !["sessionId", "turnId"].includes(key)) ||
+      typeof source.sessionId !== "string" || !source.sessionId.trim() || source.sessionId.length > 256 ||
+      typeof source.turnId !== "string" || !source.turnId.trim() || source.turnId.length > 256 ||
+      v.workSessionId !== source.sessionId || !["start", "wake"].includes(String(v.action)) || v.freshCoordinator === true || v.presenceGreeting === true) throw fail("INVALID_PARAMS");
+  }
   return v as LiveAutomationControl;
 }
 
@@ -49,6 +57,7 @@ type AutomationDependencies = {
   send: (owner: LiveOwner, request: LiveAutomationRequest) => void;
   end: (owner: LiveOwner, request: { callId: string; reason: "user-ended" } | { requestId: string; reason: "user-cancelled-start" }) => Promise<unknown>;
   createCoordinator?: () => Promise<string>;
+  readCompletedResult?: (source: { sessionId: string; turnId: string }) => Promise<string>;
   observeCoordinator?: (owner: LiveOwner, id: string) => Promise<void>;
   cleanupCoordinator?: (owner: LiveOwner, id: string, verifyCall: () => Promise<boolean>) => Promise<"deleted" | "deferred">;
   timeoutMs?: number;
@@ -69,7 +78,7 @@ export class LiveVoiceAutomation {
 
   async status() {
     await this.pruneOwner();
-    return { controlEnabled: await this.deps.enabled(), ...(await this.deps.status()), pendingRequestId: this.pending?.request.requestId ?? null };
+    return { controlEnabled: await this.deps.enabled(), resultBriefingSupported: Boolean(this.deps.readCompletedResult), ...(await this.deps.status()), pendingRequestId: this.pending?.request.requestId ?? null };
   }
 
   control(raw: unknown): Promise<LiveAutomationResult> {
@@ -133,6 +142,7 @@ export class LiveVoiceAutomation {
         : { completion: this.end(request, status) };
     }
     if (request.action === "wake" && (this.pending || live(status.call))) {
+      if (request.resultSource) return { completion: Promise.resolve({ requestId: request.requestId, state: "already-on", ...(status.call ? { callId: status.call.callId } : {}) }) };
       const pending = this.pending && this.requests.get(this.pending.request.requestId)?.promise;
       return { completion: pending ? pending.then(result => ({ ...result, requestId: request.requestId }))
         : Promise.resolve({ requestId: request.requestId, state: "already-on", callId: status.call!.callId,
@@ -147,6 +157,10 @@ export class LiveVoiceAutomation {
     if (!status.enabled) throw fail("LIVE_DISABLED");
     const owner = this.deps.owner();
     if (!owner) throw fail("LIVE_INVALID_OWNER");
+    if (request.resultSource && !status.bindings.some(binding => binding.bindingId === status.selectedBindingId && binding.adapterId === "codex-live" && binding.selectable)) throw fail("LIVE_PROTOCOL_UNSUPPORTED");
+    const resultBriefing = request.resultSource ? await this.deps.readCompletedResult?.(request.resultSource) : undefined;
+    if (request.resultSource && (!resultBriefing || new TextEncoder().encode(resultBriefing).length > 700)) throw fail("LIVE_WORK_NOT_READY");
+    if (request.intentId && this.intents.get(request.intentId) !== request.intentSequence) return { completion: Promise.resolve({ requestId: request.requestId, state: "superseded" }) };
     // Admission is serialized: no second creation on a toggle-off or retry.
     const coordinatorSessionId = request.freshCoordinator
       ? await this.deps.createCoordinator?.() : undefined;
@@ -162,7 +176,7 @@ export class LiveVoiceAutomation {
       }, this.deps.timeoutMs ?? 60_000);
       this.pending = { request, owner, resolve, reject, timer, coordinatorSessionId };
       try {
-        this.deps.send(owner, { requestId: request.requestId, action: "start", workSessionId: coordinatorSessionId ?? request.workSessionId, initialMuted: request.initialMuted !== false, presenceGreeting: request.presenceGreeting === true, ...(request.input ? { input: request.input } : {}) });
+        this.deps.send(owner, { requestId: request.requestId, action: "start", workSessionId: coordinatorSessionId ?? request.workSessionId, initialMuted: request.initialMuted !== false, presenceGreeting: request.presenceGreeting === true, ...(resultBriefing ? { resultBriefing } : {}), ...(request.input ? { input: request.input } : {}) });
       } catch {
         clearTimeout(timer); this.pending = null; reject(fail("LIVE_INVALID_OWNER"));
       }
@@ -240,14 +254,18 @@ export class LiveVoiceAutomation {
   async complete(owner: LiveOwner, raw: unknown): Promise<{ accepted: boolean }> {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw fail("INVALID_PARAMS");
     const response = raw as LiveAutomationResponse;
-    if (Object.keys(raw).some(k => !["requestId", "callId", "cancelled", "errorCode", "greetingPlayed", "greetingFinishedAt", "greetingEvidence"].includes(k)) ||
+    if (Object.keys(raw).some(k => !["requestId", "callId", "cancelled", "errorCode", "greetingPlayed", "greetingFinishedAt", "greetingEvidence", "resultBriefingPlayed", "resultBriefingFinishedAt", "resultBriefingEvidence"].includes(k)) ||
       !uuid(response.requestId) || response.callId !== undefined && !uuid(response.callId) ||
       response.cancelled !== undefined && typeof response.cancelled !== "boolean" ||
       response.errorCode !== undefined && !/^LIVE_[A-Z0-9_]{1,70}$/.test(response.errorCode) ||
       response.greetingPlayed !== undefined && typeof response.greetingPlayed !== "boolean" ||
       response.greetingEvidence !== undefined && !validGreetingEvidence(response.greetingEvidence) ||
       response.greetingFinishedAt !== undefined && (!Number.isFinite(response.greetingFinishedAt) || response.greetingFinishedAt <= 0 || response.greetingFinishedAt > Date.now() + 1000) ||
-      response.greetingPlayed === true && response.greetingFinishedAt === undefined) throw fail("INVALID_PARAMS");
+      response.greetingPlayed === true && response.greetingFinishedAt === undefined ||
+      response.resultBriefingPlayed !== undefined && typeof response.resultBriefingPlayed !== "boolean" ||
+      response.resultBriefingEvidence !== undefined && !validGreetingEvidence(response.resultBriefingEvidence) ||
+      response.resultBriefingFinishedAt !== undefined && (!Number.isFinite(response.resultBriefingFinishedAt) || response.resultBriefingFinishedAt <= 0 || response.resultBriefingFinishedAt > Date.now() + 1000) ||
+      response.resultBriefingPlayed === true && response.resultBriefingFinishedAt === undefined) throw fail("INVALID_PARAMS");
     const pending = this.pending;
     if (!pending || pending.request.requestId !== response.requestId) return { accepted: false };
     if (ownerKey(owner) !== ownerKey(pending.owner) || owner.url !== pending.owner.url) throw fail("LIVE_INVALID_OWNER");
@@ -277,6 +295,11 @@ export class LiveVoiceAutomation {
         this.started.set(pending.request.requestId, { callId: call.callId, intentId: pending.request.intentId, owner });
         if (this.started.size > 128) this.started.delete(this.started.keys().next().value!);
         pending.resolve({ requestId: response.requestId, state: "connected", callId: call.callId, muted: call.muted, playbackBlocked: call.playbackBlocked,
+        ...(pending.request.resultSource ? { resultBriefingPlayed: response.resultBriefingPlayed === true &&
+          call.workBinding?.workSessionId === pending.request.resultSource.sessionId && Boolean(response.resultBriefingEvidence &&
+          evidenceFlags.filter(key => key !== "playbackActive").every(key => response.resultBriefingEvidence![key as keyof typeof response.resultBriefingEvidence] === true) &&
+          !response.resultBriefingEvidence.playbackActive && response.resultBriefingEvidence.contextState === "running"),
+          resultBriefingEvidence: response.resultBriefingEvidence, resultBriefingFinishedAt: response.resultBriefingFinishedAt } : {}),
         ...(pending.coordinatorSessionId ? { coordinatorSessionId: pending.coordinatorSessionId } : {}),
         ...(pending.request.presenceGreeting ? { greetingPlayed: response.greetingPlayed === true,
           ...(response.greetingEvidence ? { greetingEvidence: response.greetingEvidence } : {}),

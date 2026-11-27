@@ -22,6 +22,8 @@ export type LiveAutomationControl = {
   intentId?: string;
   intentSequence?: number;
   workSessionId?: string;
+  /** Main reads this completed native turn; callers cannot supply speech text. */
+  resultSource?: { sessionId: string; turnId: string };
   /** Create an independent coordinator; never reuse the selected draft. */
   freshCoordinator?: boolean;
   initialMuted?: boolean;
@@ -44,6 +46,8 @@ export type LiveAutomationRequest = {
   workSessionId?: string;
   initialMuted?: boolean;
   presenceGreeting?: boolean;
+  /** Bounded, verified result data supplied only by Main. */
+  resultBriefing?: string;
 };
 export type LiveAutomationResponse = {
   requestId: string;
@@ -53,6 +57,9 @@ export type LiveAutomationResponse = {
   greetingPlayed?: boolean;
   greetingFinishedAt?: number;
   greetingEvidence?: LiveGreetingEvidence;
+  resultBriefingPlayed?: boolean;
+  resultBriefingFinishedAt?: number;
+  resultBriefingEvidence?: LiveGreetingEvidence;
 };
 export type LiveAutomationResult = {
   requestId: string;
@@ -67,6 +74,9 @@ export type LiveAutomationResult = {
   greetingPlayed?: boolean;
   greetingFinishedAt?: number;
   greetingEvidence?: LiveGreetingEvidence;
+  resultBriefingPlayed?: boolean;
+  resultBriefingFinishedAt?: number;
+  resultBriefingEvidence?: LiveGreetingEvidence;
 };
 
 export const LIVE_ADAPTER_IDS = [
@@ -314,6 +324,8 @@ export type LivePrepareRequest = {
   workTarget?: { workSessionId: string };
   /** Independent, call-scoped consent to share bounded text from the current work session. */
   shareSelectedSessionContext?: boolean;
+  /** Result data cannot authorize work before an actual human transcript. */
+  awaitHumanBeforeWork?: boolean;
 };
 
 export type LivePreparedCall = {

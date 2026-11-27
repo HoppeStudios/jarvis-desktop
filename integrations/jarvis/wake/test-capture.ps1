@@ -33,3 +33,16 @@ foreach($phase in @('connected','ended')){
 }
 Assert-Capture ((Stop-JarvisCapturedSpeech 'toggle') -eq 'toggle') 'Native wake toggle must retain its existing action.'
 'PASS Windows speech removed and native toggle unchanged'
+$jobs=[Collections.Generic.List[object]]::new();$script:sent=@();$persistent.intentSequence=20
+$packet=@{resultBriefingSupported=$true;call=@{phase='ended'};captureReports=@(@{requestId='result';intentId='owner';intentSequence=20})}
+Update-JarvisCapturedSpeech $packet
+Assert-Capture ($script:sent.Count -eq 1 -and $script:sent[0].capturedResultRequestId -eq 'result' -and $persistent.intentSequence -eq 21) 'Result must request its actual native briefing once.'
+Update-JarvisCapturedSpeech $packet
+Assert-Capture ($script:sent.Count -eq 1) 'Old capture intent must not restart result speech.'
+$packet.captureReports[0].intentSequence=21;$packet.call.phase='connected'
+Update-JarvisCapturedSpeech $packet
+Assert-Capture ($script:sent.Count -eq 1) 'Native result must wait for another active call.'
+$packet.call.phase='ended';$script:paused=$true
+Update-JarvisCapturedSpeech $packet
+Assert-Capture ($script:sent.Count -eq 1) 'Pause must suppress native result playback.'
+'PASS native result intent ownership, one start, busy call preservation and Pause'

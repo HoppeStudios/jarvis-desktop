@@ -11,9 +11,10 @@ capture=importlib.util.module_from_spec(spec);spec.loader.exec_module(capture)
 class Client:
     def __init__(self):
         self.sent=[];self.accepted=True;self.source='codex';self.active=False;self.running=True;self.messages=[];self.after_create=None
-    def invoke(self,operation,args=None):
+    def invoke(self,operation,args=None,confirm=False):
         self.sent.append((operation,args))
-        if operation=='voice/status':return {'call':{'phase':'connected' if self.active else 'ended'}}
+        if operation=='voice/status':return {'resultBriefingSupported':True,'call':{'phase':'connected' if self.active else 'ended'}}
+        if operation=='voice/control':return {'state':'connected','resultBriefingPlayed':True,'callId':'native-call'}
         if operation=='session/create':
             if self.after_create:self.after_create()
             return {'session':{'id':'pi-alias'}}
@@ -73,5 +74,32 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(len(capture.poll(client,self.root)),1)
         receipt.write_text('{"state":"played"}')
         self.assertEqual(capture.poll(client,self.root),[])
+
+    def finished(self):
+        client=Client();capture.execute(client,self.request,self.root);client.running=False
+        client.messages=[{'role':'assistant','turnId':'real-codex-turn','status':'complete','content':'Hotovo.'}]
+        capture.poll(client,self.root)
+        self.state['intentSequence']=6;self.save()
+        request={'requestId':str(uuid.uuid4()),'action':'wake','intentId':'intent','intentSequence':6,'capturedResultRequestId':self.request['requestId']}
+        return client,request
+
+    def test_native_briefing_uses_receipt_source_without_caller_speech_and_is_at_most_once(self):
+        client,request=self.finished();result=capture.brief(client,request,self.root)
+        self.assertTrue(result['resultBriefingPlayed'])
+        payload=[args[0] for op,args in client.sent if op=='voice/control'][0]
+        self.assertEqual(payload['resultSource'],{'sessionId':'pi-alias','turnId':'real-codex-turn'})
+        self.assertNotIn('text',payload);self.assertFalse(payload['initialMuted'])
+        self.assertEqual(capture.brief(client,request,self.root)['state'],'superseded')
+        self.assertEqual(len([1 for op,_ in client.sent if op=='voice/control']),1)
+
+    def test_result_does_not_replace_existing_call_or_override_end_pause_or_new_intent(self):
+        client,request=self.finished();client.active=True
+        self.assertEqual(capture.brief(client,request,self.root)['state'],'already-on')
+        self.assertFalse(any(op=='voice/control' for op,_ in client.sent))
+        client.active=False
+        for change in ({'paused':True},{'paused':False,'intentSequence':7}):
+            self.state.update(change);self.save()
+            self.assertEqual(capture.brief(client,request,self.root)['state'],'superseded')
+        self.assertFalse(any(op=='voice/control' for op,_ in client.sent))
 
 if __name__=='__main__':unittest.main()

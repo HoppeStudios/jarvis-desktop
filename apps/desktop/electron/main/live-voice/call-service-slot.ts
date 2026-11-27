@@ -26,6 +26,7 @@ export function createLiveCallSlot(owner: LiveOwner, request: LivePrepareRequest
     mediaReleased,
     resolveMediaReleased,
     userSpeaking: false,
+    awaitHumanBeforeWork: request.awaitHumanBeforeWork === true,
     assistantSpeaking: false,
     assistantPlaybackActive: false,
     playbackMonitorReady: false,
