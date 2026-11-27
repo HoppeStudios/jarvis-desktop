@@ -7,7 +7,9 @@ account/voice, active work, drafts, actual user input and enforced permissions.
 
 `session/find` accepts exactly one query object: query (2–200 normalized characters,
 at most 24 words), optional includeArchived boolean, project substring (up to 300
-characters) and limit 1–8. It performs one native metadata inventory invocation,
+characters), optional `owner: codex` and limit 1–8. Native Codex owner scope uses
+the existing verified remote-ID parser, excluding imported Pi history without
+guessing that equal titles/projects identify the same chat. It performs one native metadata inventory invocation,
 preserves existing sidebar archive preferences, returns only IDs/titles/projects /
 source namespace/archive flags/scores and distinguishes matched, ambiguous and
 not-found. Accents/case/word order and small title typos are tolerated. Multiple

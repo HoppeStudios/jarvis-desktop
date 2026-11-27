@@ -20,5 +20,16 @@ while the shared routing skill chooses native service APIs before GUI automation
 
 Existing Codex-Index measured approximately 6 ms for a read-only health query in
 this task; that is local saved metadata only, not remote availability or live
-status. Pi native latency was unavailable while its endpoint was inactive. Record
-post-deployment measurements before claiming an end-to-end latency improvement.
+status. Pi native latency was initially unavailable while its endpoint was inactive.
+The concurrent persistent-control fix restored it; five native substring-search
+calls took 137–146 ms each. The old search returned both imported history and
+original Codex chats with the same title. New explicit native-owner scope preserves
+those distinct identities rather than deduplicating by title. Reordered complete
+title words count as equivalent; genuine near-name alternatives stay ambiguous.
+
+A live isolated Character Map check executed four background actions in one
+PC-Control steps call in 3.4 seconds: enable Advanced View, verify its Unicode /
+search controls, disable it and close the owned test window. Effects were returned
+through BM_CLICK/UIA, with no global input or clipboard operation requested. This
+is bounded fixture coverage, not universal app compatibility or a speedup claim.
+Record post-deployment native find timings before claiming end-to-end voice latency.

@@ -24,7 +24,7 @@ test("ordinary starts honor persisted explicit Jarvis opt-in while environment d
 });
 
 test("approximate spoken names resolve actual IDs without transcript, model, secret or activity data",()=>{
- for(const query of ["jednoduchy protokol","protokol jednoduchej","jednoduchi protokol","JEDNODUCHÝ PROTOKOL"]){
+ for(const query of ["jednoduchy protokol","protokol jednoduchy","protokol jednoduchej","jednoduchi protokol","JEDNODUCHÝ PROTOKOL"]){
   const result=find(query);assert.equal(result.status,"matched",query);assert.equal(result.match.id,"pi-real");
   assert.equal(JSON.stringify(result).includes("private transcript"),false);assert.equal(JSON.stringify(result).includes("apiKey"),false);
   assert.equal(result.runningSessionIds,undefined);
@@ -38,6 +38,19 @@ test("ambiguous names preserve host namespaces and never pick an arbitrary chat"
  assert.equal(result.candidates.length,2);
  assert.equal(find("jarvis",{project:"research"}).status,"not-found");
  assert.equal(find("voice",{project:"jarvis"}).match.id,"remote:codex-shared:native-real");
+});
+
+test("a short approximate title outranks long task prompts that merely mention its words",()=>{
+ const rows=[...sessions,{id:"unrelated-task",title:"Please look into how I created the jednoduchy protokol and later asked about another unrelated project"}];
+ const result=find("jednoduchi protokol",{},rows);assert.equal(result.status,"matched");assert.equal(result.match.id,"pi-real");
+});
+
+test("explicit native Codex ownership distinguishes originals from imported snapshots without guessing identity",()=>{
+ const rows=[{id:"import-pi-copy",title:"Jednoduchý protokol",source:"codex",remoteHostKey:"codex-shared"},
+  {id:"remote:codex-shared:original",title:"Jednoduchý protokol",source:"codex",remoteHostKey:"codex-shared"}];
+ assert.equal(find("jednoduchy protokol",{},rows).status,"ambiguous");
+ assert.equal(find("jednoduchy protokol",{owner:"codex"},rows).match.id,"remote:codex-shared:original");
+ assert.throws(()=>sessionFindQuery([{query:"jarvis",owner:"invented"}]));
 });
 
 test("archive visibility, deduplication, no-match and bounded results remain explicit",()=>{

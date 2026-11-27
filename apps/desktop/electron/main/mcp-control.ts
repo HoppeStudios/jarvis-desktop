@@ -314,7 +314,7 @@ const CORE_TOOL_SPECS = [
   ),
   coreTool("pi_project_clear", "Clear the active project workspace.", objectSchema({}), "project/clear", () => []),
   coreTool("pi_session_list", "List sessions in bounded pages; archived chats require includeArchived=true.", objectSchema({ includeArchived: { type: "boolean" }, offset: { type: "integer" }, limit: { type: "integer" }, search: { type: "string" } }), "session/list", input => [input]),
-  coreTool("pi_session_find", "Find existing chats by approximate spoken title in one native metadata read. Handles accents, word order and small typos; returns ambiguity without navigating or transferring voice.", objectSchema({ query: stringSchema(), includeArchived: { type: "boolean" }, project: stringSchema(), limit: { type: "integer" } }, ["query"]), "session/find", input => [input]),
+  coreTool("pi_session_find", "Find existing chats by approximate spoken title in one native metadata read. Optional owner=codex selects original native Codex chats rather than imported Pi history. Returns ambiguity without navigation or voice transfer.", objectSchema({ query: stringSchema(), includeArchived: { type: "boolean" }, project: stringSchema(), limit: { type: "integer" }, owner: { type: "string", enum: ["codex"] } }, ["query"]), "session/find", input => [input]),
   coreTool(
     "pi_session_create",
     "Create a durable session, optionally bound to a project and model.",

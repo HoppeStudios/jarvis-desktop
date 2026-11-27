@@ -14,6 +14,11 @@ source namespace; an `ambiguous` result needs one short clarification. Never ope
 the first candidate merely because it is ranked first. Search alone does not open
 a chat, create work or move voice.
 
+For an explicitly requested original Codex chat, set `owner: "codex"`. This uses
+actual native owner namespaces and avoids treating imported Pi history as the
+original. Without that scope, identical imported/native titles remain ambiguous;
+never infer identity or deduplicate them merely from title/project similarity.
+
 If that operation is absent, read Pi-Desktop `session/list` and match meaning/title approximately,
 ignoring accents, case and small speech errors. Ask one short question for a real
 ambiguity. Do not create a duplicate or read whole transcripts for a clear title.

@@ -15,7 +15,7 @@ test("ordinary launch retains the user's persistent Jarvis control opt-in",()=>{
 test("persisted opt-in starts the real authenticated loopback server without a launch flag",async(t)=>{
  const dataDir=await mkdtemp(join(tmpdir(),"jarvis-opt-in-"));
  const persisted={jarvisEnabled:true};assert.equal(shouldStartLocalControl(undefined,persisted.jarvisEnabled),true);
- const server=new McpControlServer({dataDir,version:"fixture",channels:{appGetVersion:"fixture/version"},invoke:async()=>({version:"fixture"})});
+ const server=new McpControlServer({dataDir,port:0,version:"fixture",channels:{appGetVersion:"fixture/version"},invoke:async()=>({version:"fixture"})});
  t.after(()=>server.stop());const info=await server.start();
  assert.match(info.url,/^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
  const before=JSON.parse(await readFile(join(dataDir,"mcp-control.json"),"utf8"));assert.equal(before.active,true);
