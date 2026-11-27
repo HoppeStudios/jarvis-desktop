@@ -17,6 +17,15 @@ items. See the spoken-command spec and E2E-1176 for deployment and acceptance li
 
 ## Decision
 
+Persisted `jarvisEnabled: true` also opts into the existing authenticated loopback
+control server on the next app launch. Requiring a launcher-only environment flag
+left Jarvis disconnected after ordinary shortcuts or relaunches. Explicit
+`PI_DESKTOP_MCP_CONTROL` overrides retain precedence: `1` enables it, other supplied
+values disable it. Unset flag and disabled/unreadable Jarvis settings remain off.
+This changes startup selection only, not authentication, exposed operations,
+confirmation checks or call ownership. Inactive metadata is reported specifically;
+the helper never edits it to forge an active endpoint or restarts busy work.
+
 Keep Codex Mini's helper in `jarvis-codex` and the Pi Desktop integration in
 this fork. The selected desktop OAuth provider and voice remain authoritative.
 Jarvis is explicitly enabled in local settings. Its work agents use the user's

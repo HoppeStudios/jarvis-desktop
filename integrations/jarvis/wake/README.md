@@ -46,6 +46,12 @@ the GUI and its native settings rather than the old CLI/settings entry points.
 
 ## Behavior
 
+Persisted Jarvis opt-in starts its authenticated local control on every app
+launch, including the ordinary Pi shortcut. Explicit `PI_DESKTOP_MCP_CONTROL=0`
+still disables it. With an inactive or missing endpoint the worker reports that
+specific condition and does not blame the shared Inbox or retry through another
+interface. It never restarts a busy app to recover the connection.
+
 Optional [complete spoken commands](../../../docs/spec/06-delivery/jarvis-spoken-command-capture.md)
 retain the addressed utterance and transcribe it locally after the wake. They
 submit actual text through the installed shared adapter to a verified Codex-owned

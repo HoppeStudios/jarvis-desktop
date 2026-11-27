@@ -1,9 +1,11 @@
 # PI-Desktop stdio MCP adapter
 
 Requirements: Python 3.11+, the reviewed running PI-Desktop installation, and its
-explicit `PI_DESKTOP_MCP_CONTROL=1` startup setting or persisted Jarvis opt-in when
-that variable is absent. Explicit `0` or another non-1 value keeps control disabled.
-Unreadable/missing settings do not opt in. No extra Python packages or
+persisted Jarvis opt-in or explicit `PI_DESKTOP_MCP_CONTROL=1` startup setting.
+Jarvis opt-in starts authenticated local control on the next application launch,
+including ordinary shortcuts. An explicitly supplied environment value other
+than `1` keeps it off. Without either opt-in the default remains off.
+No extra Python packages or
 API key are required. Existing ChatGPT/provider login stays in the desktop.
 
 Register a pinned, reviewed local copy as an MCP stdio server with the existing
@@ -22,13 +24,6 @@ permission checks. Use `pi_control_describe` to discover actual operations, then
 the named tools or `pi_desktop_invoke`. It neither launches a second application
 nor converts refusals into another path. Closing stdio closes its HTTP session.
 The desktop must be running; this is a local control bridge, not a remote service.
-
-`pi_session_find` / `session/find` accepts a query object with an approximate title,
-optional project substring, includeArchived and limit 1–8. It searches one native
-metadata inventory, tolerates accents/word order/small typos and returns matched,
-ambiguous or not-found with exact owner IDs. It never reads transcripts, opens a
-chat, reports live status or transfers voice. Use normal session/open separately
-after a clear match. Older application builds retain session/list as the fallback.
 
 `settings/configureGeneral` accepts a bounded patch of existing provider/model
 selection, builtin Agent/Plan default, permission preference, update preference,
@@ -90,3 +85,10 @@ or attachment paths. Unknown/timeout state is never empty. This is a read-only
 observation, not a lease permitting an updater to close the app; active work,
 calls and concurrent input require separate guards. Older clients do not expose
 this operation, so their first restart still needs an actual draft-state check.
+
+`pi_session_find` / `session/find` accepts a query object with an approximate title,
+optional project substring, includeArchived and limit 1–8. It searches one native
+metadata inventory, tolerates accents/word order/small typos and returns matched,
+ambiguous or not-found with exact owner IDs. It never reads transcripts, opens a
+chat, reports live status or transfers voice. Use normal session/open separately
+after a clear match. Older application builds retain session/list as the fallback.

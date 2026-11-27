@@ -16,6 +16,19 @@ class FakeClient:
 
 
 class WakeWorkerTests(unittest.TestCase):
+    def test_inactive_endpoint_is_specific_and_never_attempts_transport(self):
+        with patch.object(Path,'read_text',return_value='{"active":false,"token":"secret-do-not-echo"}'), patch.object(worker,'transport') as transport:
+            with self.assertRaises(worker.ControlUnavailable) as raised:worker.Client()
+        self.assertEqual(raised.exception.code,'PI_CONTROL_INACTIVE')
+        self.assertNotIn('secret-do-not-echo',str(raised.exception))
+        transport.assert_not_called()
+
+    def test_missing_endpoint_does_not_claim_shared_queue_or_permission_failure(self):
+        with patch.object(Path,'read_text',side_effect=FileNotFoundError), patch.object(worker,'transport') as transport:
+            with self.assertRaises(worker.ControlUnavailable) as raised:worker.Client()
+        self.assertEqual(raised.exception.code,'PI_CONTROL_NOT_STARTED')
+        transport.assert_not_called()
+
     def test_wake_uses_fresh_native_coordinator_and_ordered_intent(self):
         c = FakeClient()
         request = dict(operation='voice', action='wake', requestId='id', intentId='intent', intentSequence=4)

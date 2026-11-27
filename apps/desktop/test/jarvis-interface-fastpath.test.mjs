@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 register(new URL("./helpers/ts-import-hooks.mjs",import.meta.url));
 const {sessionFindQuery,findSessionMetadata}=await import("../electron/main/mcp-session-find.ts");
-const {shouldStartMcpControl}=await import("../electron/main/mcp-startup-policy.ts");
+const {shouldStartLocalControl:shouldStartMcpControl}=await import("../electron/main/bootstrap/local-control-opt-in.ts");
 const {createMcpControlController,McpControlServer}=await import("../electron/main/mcp-control.ts");
 const sessions=[
  {id:"pi-real",title:"Jednoduchý protokol",projectPath:"C:/Projects/Research",source:"desktop",content:"private transcript",apiKey:"secret"},

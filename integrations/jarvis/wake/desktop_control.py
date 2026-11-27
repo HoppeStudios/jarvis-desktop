@@ -8,6 +8,13 @@ import subprocess
 import time
 
 
+class ControlUnavailable(RuntimeError):
+    """Fixed, non-secret diagnostics; never echo endpoint credentials or replies."""
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
 def transport():
     spec = importlib.util.spec_from_file_location('jarvis_transport', Path(__file__).parents[1]/'mcp/stdio.py')
     module = importlib.util.module_from_spec(spec)
@@ -17,7 +24,13 @@ def transport():
 
 class Client:
     def __init__(self):
-        self.connection = transport().DesktopConnection(json.loads((Path.home()/'.pi-desktop/mcp-control.json').read_text()))
+        try:
+            metadata = json.loads((Path.home()/'.pi-desktop/mcp-control.json').read_text())
+        except FileNotFoundError:
+            raise ControlUnavailable('PI_CONTROL_NOT_STARTED', 'Pi Desktop has not started Jarvis control. Open Pi through the Jarvis launcher.') from None
+        if metadata.get('active') is False:
+            raise ControlUnavailable('PI_CONTROL_INACTIVE', 'Pi Desktop Jarvis control is inactive. Finish any Pi work, then close and reopen Pi through the Jarvis launcher.')
+        self.connection = transport().DesktopConnection(metadata)
         self.sequence = 0
         self.rpc('initialize', {'protocolVersion':'2025-03-26', 'capabilities':{},
                                'clientInfo':{'name':'jarvis-pi-wake', 'version':'1.0.0'}})
@@ -115,6 +128,8 @@ def main():
         request = json.loads(args.request.read_text(encoding='utf-8-sig'))
         client = Client()
         result = {'ok':True, 'result':execute(client, request, args.root)}
+    except ControlUnavailable as error:
+        result = {'ok':False, 'error':str(error), 'errorCode':error.code}
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
         result = {'ok':False, 'error':'Pi Desktop or the shared queue is unavailable, or the native action was refused. Check Pi Desktop and Jarvis status.'}
     finally:

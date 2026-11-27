@@ -1,6 +1,5 @@
 import { app, BrowserWindow, crashReporter, Menu, safeStorage } from "electron";
 import { readSidebarBackup } from "../sidebar-preferences";
-import { shouldStartMcpControl } from "../mcp-startup-policy";
 import { createScheduledRunner } from "../runtime/scheduled-runner";
 import { onConfirmedQuit } from "./confirmed-quit";
 import {
@@ -46,6 +45,7 @@ import type { Logger } from "../logger";
 import type { PluginRuntime } from "../plugin-runtime";
 import { runSessionListProbe } from "../session-list-probe";
 import { applyInstallSetup } from "../install-setup";
+import { shouldStartLocalControl } from "./local-control-opt-in";
 import {
   ensureCrashDumpsDirectory,
   reportPreviousCrashDumps,
@@ -383,11 +383,11 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       });
     }
     const host = getHost();
-    let jarvisControlOptIn = false;
     // Preferences for the boot animation, when settings were readable. An
     // unreadable backend leaves this null and discovery falls back to the
     // defaults, so a launch with no host still plays what the user dropped in.
     let storedStartupAnimationSettings: { startupAnimation?: unknown } | null = null;
+    let storedJarvisEnabled = false;
     if (host) {
       try {
         const stored = (await host.call("settings.get")) as {
@@ -398,9 +398,9 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
           fontScale?: unknown;
           macosWindowTranslucency?: unknown;
           startupAnimation?: unknown;
-          jarvisEnabled?: unknown;
           preventScreenSleep?: unknown;
           keepAwakeWhileRunning?: unknown;
+          jarvisEnabled?: unknown;
         } | null;
         applyApplicationMenuSettings(stored);
         applyDeveloperMode(stored);
@@ -408,7 +408,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
         applyPreventScreenSleep(stored);
         applyKeepAwakeWhileRunning(stored);
         storedStartupAnimationSettings = stored;
-        jarvisControlOptIn = stored?.jarvisEnabled === true;
+        storedJarvisEnabled = stored?.jarvisEnabled === true;
         await applyNetworkProxyFromAppSettings(stored);
       } catch {
         // Keep the OS-locale menu until settings can be read again, while
@@ -448,7 +448,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       await applyInstallSetup(process.env.PI_DESKTOP_INSTALL_SETUP, invokeIpc);
     }
     await ensureWindow();
-    if (shouldStartMcpControl(process.env.PI_DESKTOP_MCP_CONTROL, jarvisControlOptIn)) {
+    if (shouldStartLocalControl(process.env.PI_DESKTOP_MCP_CONTROL, storedJarvisEnabled)) {
       try {
         state.mcpControl = new McpControlServer({
           dataDir,

@@ -40,7 +40,8 @@ function ipcInvokeKeys(source) {
 
 test("the optional MCP control server reuses IPC and synchronizes renderer state", () => {
   assert.match(startup, /const invokeIpc = registerIpc\(\)/);
-  assert.match(startup, /shouldStartMcpControl\(process\.env\.PI_DESKTOP_MCP_CONTROL, jarvisControlOptIn\)/);
+  assert.match(startup, /shouldStartLocalControl\(process\.env\.PI_DESKTOP_MCP_CONTROL, storedJarvisEnabled\)/);
+  assert.match(startup, /storedJarvisEnabled = stored\?\.jarvisEnabled === true/);
   assert.match(startup, /channels: IPC\.invoke/);
   assert.match(startup, /version: APP_VERSION/);
   assert.match(startup, /mcpControlRendererEvent/);

@@ -17,7 +17,9 @@ Do not install one fork's runtime over the other's active call.
 - A working microphone, output device, Windows microphone permission and network
   access to the provider. Audio activation must use the real renderer permission
   flow. Browser/OS denials are errors, not a reason to inject global input.
-- For external local MCP control, launch with `PI_DESKTOP_MCP_CONTROL=1` and use
+- Persisted Jarvis opt-in enables authenticated local MCP on ordinary launches;
+  explicit `PI_DESKTOP_MCP_CONTROL=1` also enables it, while an explicit `0`
+  disables it. For external control use
   Python 3.11+ for the [stdio adapter](mcp/README.md). Control binds only loopback;
   keep `~/.pi-desktop/mcp-control.json` private.
 - Queue loading requires the separately reviewed local Jarvis-Inbox MCP already
