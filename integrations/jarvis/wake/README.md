@@ -46,6 +46,36 @@ the GUI and its native settings rather than the old CLI/settings entry points.
 
 ## Behavior
 
+Persisted Jarvis opt-in starts its authenticated local control on every app
+launch, including the ordinary Pi shortcut. Explicit `PI_DESKTOP_MCP_CONTROL=0`
+still disables it. With an inactive or missing endpoint the worker reports that
+specific condition and does not blame the shared Inbox or retry through another
+interface. It never restarts a busy app to recover the connection.
+
+Optional [complete spoken commands](../../../docs/spec/06-delivery/jarvis-spoken-command-capture.md)
+retain the addressed utterance and transcribe it locally after the wake. They
+submit actual text through the installed shared adapter to a verified Codex-owned
+chat. The selected native Live voice/account remain unchanged; Windows reply
+speech is not used. This candidate adds native result briefing by verified source
+session/turn IDs. It requires the matching reviewed Pi application update; an
+older app explicitly lacks the capability and never falls back to another voice.
+The same capture intent may open one result call after completion while idle.
+Another call is preserved; End/Pause/newer intent suppresses this direct start.
+Automatic playback is acknowledged only after matching transcript, measured audio,
+completed provider turn and drained playback. The shared Inbox stays unresolved
+until actual acknowledgement; an attempted/interrupted report is never auto-repeated.
+Enable through the reviewed `capture-install.ps1`
+with a locally prepared, hash-pinned runtime config; no account data belongs in
+that source repository. Tray settings then expose capture, language, silence,
+transcription spellings and optional final words. Local ASR runs only on addressed
+idle commands, with a 30-second capture cap and a 45-second worker bound.
+
+The model is [Whisper Small Q5_1](https://huggingface.co/ggerganov/whisper.cpp/tree/5359861c739e955e79d9a303bcbc70fb988958b1)
+(MIT); transcription reuses [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp)
+0.2.2 (MIT) already locked by Pi. Keep the model's and runtime's license/credits.
+The model is about 190 MB on disk. Cold ASR adds latency and temporary CPU/RAM
+use; increasing endpoint silence also delays bare wakes while capture is enabled.
+
 The saved wake names, command groups, confidence, silence and recognizer culture
 are retained. A bare wake phrase toggles the desired on/off state; repeated
 phrases delivered in one SAPI utterance preserve each toggle. Recognition and

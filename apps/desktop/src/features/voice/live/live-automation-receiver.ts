@@ -3,9 +3,10 @@ import type { LiveAutomationRequest, LiveAutomationResponse, LiveCallView } from
 type Controller = {
   refreshStatus: () => Promise<void>;
   getSnapshot: () => { starting: boolean; stopping: boolean; call: LiveCallView | null; errorCode?: string };
-  start: (options: { requestId: string; signal: AbortSignal; input?: LiveAutomationRequest["input"]; workTarget?: { workSessionId: string } }) => Promise<void>;
+  start: (options: { requestId: string; signal: AbortSignal; input?: LiveAutomationRequest["input"]; workTarget?: { workSessionId: string }; awaitHumanBeforeWork?: boolean }) => Promise<void>;
   toggleMute: () => Promise<void>;
   presenceGreeting?: () => Promise<{ greetingPlayed: boolean; greetingFinishedAt?: number }>;
+  resultBriefing?: (text: string) => Promise<Pick<LiveAutomationResponse, "resultBriefingPlayed" | "resultBriefingFinishedAt" | "resultBriefingEvidence">>;
 };
 
 /** Handles only Main's trusted event. No desktop input or foreground operation. */
@@ -33,10 +34,12 @@ export class LiveAutomationReceiver {
       if (abort.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "LIVE_STALE_CALL" });
       const before = this.controller.getSnapshot();
       if (before.starting || before.stopping || before.call && !["ended", "failed"].includes(before.call.phase)) throw Object.assign(new Error("busy"), { code: "LIVE_ALREADY_ACTIVE" });
-      await this.controller.start({ requestId: request.requestId, signal: abort.signal, ...(request.input ? { input: request.input } : {}), ...(request.workSessionId ? { workTarget: { workSessionId: request.workSessionId } } : {}) });
+      if (request.resultBriefing && !this.controller.resultBriefing) throw Object.assign(new Error("unsupported"), { code: "LIVE_PROTOCOL_UNSUPPORTED" });
+      await this.controller.start({ requestId: request.requestId, signal: abort.signal, ...(request.input ? { input: request.input } : {}), ...(request.workSessionId ? { workTarget: { workSessionId: request.workSessionId } } : {}), ...(request.resultBriefing ? { awaitHumanBeforeWork: true } : {}) });
       if (abort.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "LIVE_STALE_CALL" });
       if (request.initialMuted === false && this.controller.getSnapshot().call?.muted) await this.controller.toggleMute();
       if (request.presenceGreeting) Object.assign(response, await this.controller.presenceGreeting?.() ?? { greetingPlayed: false });
+      if (request.resultBriefing) Object.assign(response, await this.controller.resultBriefing!(request.resultBriefing));
       if (abort.signal.aborted) throw Object.assign(new Error("cancelled"), { code: "LIVE_STALE_CALL" });
       const call = this.controller.getSnapshot().call;
       if (!call || call.phase !== "connected") throw Object.assign(new Error("not connected"), { code: this.controller.getSnapshot().errorCode ?? "LIVE_STALE_CALL" });

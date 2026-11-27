@@ -203,6 +203,7 @@ identify the platform validation still needed.
 
 | Acceptance | Scenarios |
 |---|---|
+| C / E / Security / Quality — Addressed local command capture and text Codex reply | E2E-1176 |
 | C / E / Security / Quality — Gemini work setup | E2E-LIVE-VOICE-gemini-work-schema |
 | C / Quality — Continue after malformed tool output | E2E-RUNTIME-malformed-tool-call-continue-recovery |
 | B / Security / Quality — Optional provider client certificate requests | E2E-PROVIDER-optional-client-certificate |

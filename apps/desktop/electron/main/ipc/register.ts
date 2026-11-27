@@ -42,6 +42,7 @@ import { registerComposerIpc } from "./composer-ipc";
 import { registerSpeechIpc } from "./speech-ipc";
 import { registerVoiceIpc } from "./voice-ipc";
 import { registerLiveVoiceIpc } from "./live-voice-ipc";
+import { readCompletedResult } from "../live-voice/completed-result";
 import type { LiveCallService } from "../live-voice/call-service";
 import { createJarvisCoordinator } from "../jarvis/coordinator";
 import { JarvisCoordinatorCleanup, RendererCleanupProbe, createCleanupDocumentWatcher } from "../jarvis/coordinator-cleanup";
@@ -586,6 +587,11 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     registerLiveVoiceIpc({ registrar, service: liveCallService, getMainWindow, widget: liveVoiceWidget,
       automationEnabled: async () => (await getHost()?.call<{ jarvisEnabled?: boolean }>("settings.get"))?.jarvisEnabled === true,
       captureStatus: dependencies.jarvisCaptureStatus,
+      readCompletedResult: source => readCompletedResult(async value => {
+        const bridge = getCodexChatBridge();
+        if (!bridge) throw Object.assign(new Error("Result owner unavailable"), { errorCode: "LIVE_WORK_NOT_READY" });
+        return bridge.readCompletedResultSource(value.sessionId, value.turnId);
+      }, source),
       cleanupProbe, coordinatorCleanup,
       composerDraftStatus: async () => {
         refreshDraftOwner();

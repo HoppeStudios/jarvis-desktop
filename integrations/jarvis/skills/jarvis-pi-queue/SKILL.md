@@ -25,6 +25,21 @@ ending a call and merely generating audio leave the item pending. Re-read the
 queue between items. Deferred entries wait until due unless explicitly requested.
 
 For questions, inspect the actual origin and current delivery capabilities.
+Present one complete current question with its actual option labels before
+accepting an ordinal answer. Do not combine independent choices such as command
+capture and reply voice into one implied decision. An old queued question never
+silently overrides a newer direct preference for voice, account or runtime.
+
+Preserve the user's verbatim answer separately from any interpretation. A bare
+ordinal may select its single unambiguous question; additional words can qualify
+or contradict it. If the ordinal, spoken clarification and option consequence
+disagree, keep the item unresolved and clarify that exact disagreement before
+forwarding/resolving. Do not discard the extra words or expand the answer into
+new authority. A clear correction supersedes the earlier interpretation without
+asking for the same permission again. Relay summaries must not label an inferred
+choice as confirmed human intent. The receiving worker must apply the same scope
+check; a normalized label does not outrank the literal reply or newer preferences.
+
 For a verified Codex origin, the installed shared-chat adapter exposes its native
 owner through `remote:codex-shared:<actual threadId>`. Read `session/get` and
 `agent/pendingInteractive` for that exact ID; require a Codex source, never infer

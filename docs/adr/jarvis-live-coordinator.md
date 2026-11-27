@@ -2,7 +2,29 @@
 
 Status: Implementation candidate
 
+## Completed result briefing
+
+The capture workflow uses an additive restricted result delivery contract, not
+adoption into a fabricated call operation ledger. Authenticated `voice/control`
+accepts only actual source session/turn IDs and Main re-reads the complete native
+shared-Codex result before starting media. Only Main supplies bounded quoted text
+to the renderer. Existing call ownership, selected binding, intents, cancellation,
+microphone leases and independent approvals stay authoritative. The real Codex
+session context channel requests speech; no human utterance or provider delegation
+ID is invented. Work remains rejected until a real human transcript. Playback
+requires separate transcript/audio/turn/drain evidence and never resolves Inbox
+items. See the spoken-command spec and E2E-1176 for deployment and acceptance limits.
+
 ## Decision
+
+Persisted `jarvisEnabled: true` also opts into the existing authenticated loopback
+control server on the next app launch. Requiring a launcher-only environment flag
+left Jarvis disconnected after ordinary shortcuts or relaunches. Explicit
+`PI_DESKTOP_MCP_CONTROL` overrides retain precedence: `1` enables it, other supplied
+values disable it. Unset flag and disabled/unreadable Jarvis settings remain off.
+This changes startup selection only, not authentication, exposed operations,
+confirmation checks or call ownership. Inactive metadata is reported specifically;
+the helper never edits it to forge an active endpoint or restarts busy work.
 
 Keep Codex Mini's helper in `jarvis-codex` and the Pi Desktop integration in
 this fork. The selected desktop OAuth provider and voice remain authoritative.

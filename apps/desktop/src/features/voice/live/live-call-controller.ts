@@ -25,6 +25,7 @@ import { playPresenceGreeting, type PresenceGreetingResult } from "./presence-gr
 import { CodexTranscriptAssembler } from "./codex-transcript";
 import { sendJarvisSessionContext } from "./jarvis-session-context";
 import { requestCallMicrophone } from "./call-input";
+import { resultBriefingMessage, matchesResultBriefing } from "./result-briefing";
 
 export type LiveVoiceSnapshot = {
   status: LiveStatus | null;
@@ -153,7 +154,25 @@ export class LiveCallController {
     });
   }
 
-  async start(options: { input?: LiveCallInput; workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean; requestId?: string; signal?: AbortSignal } = {}): Promise<void> {
+  async resultBriefing(text: string) {
+    const call = this.snapshot.call;
+    const resources = call && [...this.resources.values()].find(item => item.callId === call.callId);
+    if (!call || call.adapterId !== "codex-live" || !resources || resources.channel?.readyState !== "open") throw liveError("LIVE_PROTOCOL_UNSUPPORTED");
+    const message = resultBriefingMessage(text);
+    const startedAt = Date.now();
+    const result = await playPresenceGreeting({ signal: resources.abort.signal, timeoutMs: 40_000,
+      state: () => ({ connected: this.snapshot.call?.callId === call.callId && this.snapshot.call.phase === "connected",
+        playbackBlocked: this.snapshot.call?.playbackBlocked === true, providerReady: resources.providerReady === true,
+        transcriptReceived: this.snapshot.transcripts.some(item => item.role === "assistant" && item.timestamp >= startedAt),
+        transcriptMatches: matchesResultBriefing(this.snapshot.transcripts.filter(item => item.role === "assistant" && item.final && item.timestamp >= startedAt).map(item => item.text).join(" "), text),
+        measuredAudio: (resources.lastMeasuredAudioAt ?? 0) >= startedAt, playbackActive: resources.playbackActive === true,
+        turnComplete: (resources.lastProviderTurnCompleteAt ?? 0) >= startedAt, contextState: resources.context?.state ?? "unavailable" }),
+      send: () => resources.channel!.send(message) });
+    return { resultBriefingPlayed: result.greetingPlayed, resultBriefingEvidence: result.greetingEvidence,
+      ...(result.greetingFinishedAt ? { resultBriefingFinishedAt: result.greetingFinishedAt } : {}) };
+  }
+
+  async start(options: { input?: LiveCallInput; workTarget?: { workSessionId: string }; shareSelectedSessionContext?: boolean; awaitHumanBeforeWork?: boolean; requestId?: string; signal?: AbortSignal } = {}): Promise<void> {
     if (options.signal?.aborted) throw liveError("LIVE_STALE_CALL");
     if (this.snapshot.starting || this.snapshot.stopping || isLive(this.snapshot.call?.phase)) return;
     if (this.snapshot.call?.error?.code === "LIVE_MEDIA_RELEASE_UNCONFIRMED" || this.snapshot.errorCode === "LIVE_MEDIA_RELEASE_UNCONFIRMED") {
@@ -189,6 +208,7 @@ export class LiveCallController {
         initialMuted: true,
         ...(workTarget ? { workTarget } : {}),
         ...(options.shareSelectedSessionContext !== undefined ? { shareSelectedSessionContext: options.shareSelectedSessionContext } : {}),
+        ...(options.awaitHumanBeforeWork ? { awaitHumanBeforeWork: true } : {}),
       });
       void prepareRequest.then((prepared) => {
         if (resources.abort.signal.aborted || generation !== this.generation) {

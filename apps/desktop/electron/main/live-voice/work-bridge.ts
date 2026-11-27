@@ -90,6 +90,7 @@ const INTENT_SYSTEM_PROMPT = [
   "Fail closed with clarify when intent or target is ambiguous.",
   "When the Host context names an open question and the user answers it, use respond-input with that question's own option labels: one entry per question, questionIndex matching the order the questions were read out, and never a label the question did not offer. An explicit ordinal such as first/second, option one/two, beru první možnost or tu druhou selects the corresponding offered option in that actual question; resolve it to the full exact label. A clear semantic paraphrase may select one unambiguous offered option. Do not demand verbatim speech when the selection is clear. Negated, quoted, hypothetical, ambiguous or incomplete choices do not supply an answer; all questions still require actual answers.",
   "A spoken answer is never approval for a permission, Plan, or Goal request; those stay in the desktop UI.",
+  "Preserve the literal human clarification. An ordinal selects only its one clearly presented current question, never another setting. If additional spoken words contradict an old option's bundled consequence, clarify that exact conflict instead of dropping the qualifier or submitting the option. Capture mode and reply voice are independent choices; a newer direct preference remains authoritative. A clear correction settles the choice without asking again.",
   `Schema: ${JSON.stringify(LIVE_WORK_INTENT_SCHEMA)}`,
 ].join("\n");
 

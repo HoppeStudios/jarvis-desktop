@@ -45,6 +45,7 @@ import type { Logger } from "../logger";
 import type { PluginRuntime } from "../plugin-runtime";
 import { runSessionListProbe } from "../session-list-probe";
 import { applyInstallSetup } from "../install-setup";
+import { shouldStartLocalControl } from "./local-control-opt-in";
 import {
   ensureCrashDumpsDirectory,
   reportPreviousCrashDumps,
@@ -386,6 +387,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
     // unreadable backend leaves this null and discovery falls back to the
     // defaults, so a launch with no host still plays what the user dropped in.
     let storedStartupAnimationSettings: { startupAnimation?: unknown } | null = null;
+    let storedJarvisEnabled = false;
     if (host) {
       try {
         const stored = (await host.call("settings.get")) as {
@@ -398,6 +400,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
           startupAnimation?: unknown;
           preventScreenSleep?: unknown;
           keepAwakeWhileRunning?: unknown;
+          jarvisEnabled?: unknown;
         } | null;
         applyApplicationMenuSettings(stored);
         applyDeveloperMode(stored);
@@ -405,6 +408,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
         applyPreventScreenSleep(stored);
         applyKeepAwakeWhileRunning(stored);
         storedStartupAnimationSettings = stored;
+        storedJarvisEnabled = stored?.jarvisEnabled === true;
         await applyNetworkProxyFromAppSettings(stored);
       } catch {
         // Keep the OS-locale menu until settings can be read again, while
@@ -444,7 +448,7 @@ export function registerApplicationStartup(deps: StartupDependencies): void {
       await applyInstallSetup(process.env.PI_DESKTOP_INSTALL_SETUP, invokeIpc);
     }
     await ensureWindow();
-    if (process.env.PI_DESKTOP_MCP_CONTROL === "1") {
+    if (shouldStartLocalControl(process.env.PI_DESKTOP_MCP_CONTROL, storedJarvisEnabled)) {
       try {
         state.mcpControl = new McpControlServer({
           dataDir,

@@ -22,6 +22,7 @@ export function registerLiveVoiceIpc(input: {
   widget: Pick<LiveVoiceWidget, "owns" | "setPresentation" | "requestAction" | "setOwnerState">;
   automationEnabled?: () => Promise<boolean>;
   createCoordinator?: () => Promise<string>;
+  readCompletedResult?: (source: { sessionId: string; turnId: string }) => Promise<string>;
   captureStatus?: () => unknown;
   coordinatorCleanup?: JarvisCoordinatorCleanup;
   cleanupProbe?: RendererCleanupProbe;
@@ -44,6 +45,7 @@ export function registerLiveVoiceIpc(input: {
     },
     end: (identity, request) => service.end(identity, request),
     createCoordinator: input.createCoordinator,
+    readCompletedResult: input.readCompletedResult,
     observeCoordinator: (identity, id) => input.coordinatorCleanup?.observe(identity, id) ?? Promise.resolve(),
     cleanupCoordinator: (identity, id, verify) => input.coordinatorCleanup?.cleanup(identity, id, verify) ?? Promise.resolve("deferred"),
   });
@@ -168,7 +170,7 @@ function parseResolveWorkSelection(raw: unknown): { callId: string; selectionRef
 
 export function parsePrepare(raw: unknown) {
   const input = record(raw);
-  exactKeys(input, ["requestId", "bindingId", "expectedSettingsRevision", "initialMuted", "workTarget", "shareSelectedSessionContext"]);
+  exactKeys(input, ["requestId", "bindingId", "expectedSettingsRevision", "initialMuted", "workTarget", "shareSelectedSessionContext", "awaitHumanBeforeWork"]);
   if (typeof input.requestId !== "string" || typeof input.bindingId !== "string" || !input.bindingId.trim() || input.bindingId.length > 256 || !Number.isSafeInteger(input.expectedSettingsRevision) || (input.expectedSettingsRevision as number) < 0 || typeof input.initialMuted !== "boolean") return invalid();
   let workTarget: { workSessionId: string } | undefined;
   if (input.workTarget !== undefined) {
@@ -178,6 +180,7 @@ export function parsePrepare(raw: unknown) {
     workTarget = { workSessionId: target.workSessionId };
   }
   if (input.shareSelectedSessionContext !== undefined && typeof input.shareSelectedSessionContext !== "boolean") return invalid();
+  if (input.awaitHumanBeforeWork !== undefined && typeof input.awaitHumanBeforeWork !== "boolean") return invalid();
   return {
     requestId: input.requestId,
     bindingId: input.bindingId,
@@ -185,6 +188,7 @@ export function parsePrepare(raw: unknown) {
     initialMuted: input.initialMuted,
     ...(workTarget ? { workTarget } : {}),
     ...(input.shareSelectedSessionContext !== undefined ? { shareSelectedSessionContext: input.shareSelectedSessionContext } : {}),
+    ...(input.awaitHumanBeforeWork !== undefined ? { awaitHumanBeforeWork: input.awaitHumanBeforeWork } : {}),
   };
 }
 

@@ -1,7 +1,11 @@
 # PI-Desktop stdio MCP adapter
 
 Requirements: Python 3.11+, the reviewed running PI-Desktop installation, and its
-explicit `PI_DESKTOP_MCP_CONTROL=1` startup setting. No extra Python packages or
+persisted Jarvis opt-in or explicit `PI_DESKTOP_MCP_CONTROL=1` startup setting.
+Jarvis opt-in starts authenticated local control on the next application launch,
+including ordinary shortcuts. An explicitly supplied environment value other
+than `1` keeps it off. Without either opt-in the default remains off.
+No extra Python packages or
 API key are required. Existing ChatGPT/provider login stays in the desktop.
 
 Register a pinned, reviewed local copy as an MCP stdio server with the existing

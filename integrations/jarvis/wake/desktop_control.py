@@ -8,6 +8,13 @@ import subprocess
 import time
 
 
+class ControlUnavailable(RuntimeError):
+    """Fixed, non-secret diagnostics; never echo endpoint credentials or replies."""
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
 def transport():
     spec = importlib.util.spec_from_file_location('jarvis_transport', Path(__file__).parents[1]/'mcp/stdio.py')
     module = importlib.util.module_from_spec(spec)
@@ -17,7 +24,13 @@ def transport():
 
 class Client:
     def __init__(self):
-        self.connection = transport().DesktopConnection(json.loads((Path.home()/'.pi-desktop/mcp-control.json').read_text()))
+        try:
+            metadata = json.loads((Path.home()/'.pi-desktop/mcp-control.json').read_text())
+        except FileNotFoundError:
+            raise ControlUnavailable('PI_CONTROL_NOT_STARTED', 'Pi Desktop has not started Jarvis control. Open Pi through the Jarvis launcher.') from None
+        if metadata.get('active') is False:
+            raise ControlUnavailable('PI_CONTROL_INACTIVE', 'Pi Desktop Jarvis control is inactive. Finish any Pi work, then close and reopen Pi through the Jarvis launcher.')
+        self.connection = transport().DesktopConnection(metadata)
         self.sequence = 0
         self.rpc('initialize', {'protocolVersion':'2025-03-26', 'capabilities':{},
                                'clientInfo':{'name':'jarvis-pi-wake', 'version':'1.0.0'}})
@@ -60,12 +73,20 @@ def queue_poll(root):
 
 def execute(client, request, root):
     operation = request.get('operation')
+    if operation == 'captured-task':
+        from captured_task import execute as captured_execute
+        return captured_execute(client, request, root, execute)
     if operation == 'poll':
         status = client.invoke('voice/status')
         try:
             status.update(queue_poll(root))
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
             status.update(pendingCount=0, queueError='Shared queue monitoring is unavailable.')
+        try:
+            from captured_task import poll as capture_poll
+            status['captureReports'] = capture_poll(client,root)
+        except (OSError,ValueError,RuntimeError):
+            status['captureError'] = 'Captured text task status is unavailable.'
         return status
     if operation == 'settings':
         return client.invoke('settings/openJarvis')
@@ -76,6 +97,10 @@ def execute(client, request, root):
     action = request.get('action')
     if action not in ('wake', 'end', 'new-chat'):
         raise ValueError('Unknown voice action.')
+    if request.get('capturedResultRequestId'):
+        if action!='wake':raise ValueError('Invalid result action.')
+        from captured_task import brief
+        return brief(client,request,root)
     payload = {key:request[key] for key in ('requestId', 'action', 'intentId', 'intentSequence')}
     if action != 'end':
         payload.update(freshCoordinator=True, initialMuted=request.get('initialMuted', False),
@@ -98,11 +123,13 @@ def main():
     client = None
     began = time.monotonic()
     try:
-        if args.request.stat().st_size > 4096:
+        if args.request.stat().st_size > 16384:
             raise ValueError('Oversized listener request.')
         request = json.loads(args.request.read_text(encoding='utf-8-sig'))
         client = Client()
         result = {'ok':True, 'result':execute(client, request, args.root)}
+    except ControlUnavailable as error:
+        result = {'ok':False, 'error':str(error), 'errorCode':error.code}
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
         result = {'ok':False, 'error':'Pi Desktop or the shared queue is unavailable, or the native action was refused. Check Pi Desktop and Jarvis status.'}
     finally:
