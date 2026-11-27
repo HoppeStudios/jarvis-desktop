@@ -5,8 +5,8 @@
 
 ## E2E-JARVIS-native-computer-interface
 
-- **Status:** Draft; deterministic native gateway/matcher/policy tests exist;
-  installed application and natural voice acceptance remain separate gates.
+- **Status:** Installed native API/UI acceptance passed; natural microphone
+  command acceptance remains a separate, unmeasured interaction check.
 - **Acceptance:** C / E / Security / Quality. **Milestone:** M6+.
 - **Preconditions:** Explicit persisted Jarvis enablement, reviewed selected Pi
   installation, actual native session metadata and pinned computer/browser tools.

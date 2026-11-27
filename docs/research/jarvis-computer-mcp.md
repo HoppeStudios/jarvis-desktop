@@ -33,3 +33,25 @@ search controls, disable it and close the owned test window. Effects were return
 through BM_CLICK/UIA, with no global input or clipboard operation requested. This
 is bounded fixture coverage, not universal app compatibility or a speedup claim.
 Record post-deployment native find timings before claiming end-to-end voice latency.
+
+## Installed acceptance
+
+The final installed native lookup measured 109.8–133.4 ms across five requests
+(median 114.6 ms). The former full-inventory route required six pages for 593
+metadata rows and took 748 ms. This compares native metadata workflows, not total
+spoken-command latency or an already-known exact-title substring lookup.
+
+The installed named MCP tool and stale-catalog CLI both returned the actual
+requested native chat. Native open returned its verified view receipt in 315.8 ms;
+the target title and conversation were separately observed in the background Pi
+window. The existing connected call retained its ID and work binding; foreground
+window and clipboard sequence stayed unchanged during that bounded operation.
+No work was started in the target. Bound native-owner lookup was verified against
+actual linked Pi views, not only synthetic fixtures.
+
+Pi's managed MCP status reported the retained Windows, Firefox, Chromium, local
+Codex index and Pi control servers ready; its Pi tools included the new finder.
+Selected Live settings and binding, existing listener identity and Startup shortcut
+were verified preserved. A new spoken microphone command was not part of this
+acceptance; the pinned retained-audio ASR fixture passed separately. No native
+voice-context transfer is implied by the verified chat navigation.
