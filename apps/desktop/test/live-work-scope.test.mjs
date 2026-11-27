@@ -192,10 +192,17 @@ test("live work backend port keeps prompt, stop, queue, and capability calls on 
     observeTurnTarget: () => null,
   });
   const voiceOrigin = { callId: "call-a", operationId: "operation-a" };
-  const submit = (sessionId) => port.submit({ sessionId, text: "fixture request", userMessageId: "message-a", voiceOrigin, idempotencyKey: `${sessionId}:key` });
+  const submit = (sessionId, text = "fixture request", key = "key") => port.submit({ sessionId, text, userMessageId: `message-${key}`, voiceOrigin, idempotencyKey: `${sessionId}:${key}` });
 
   assert.deepEqual(await submit("desktop-1"), { status: "started", turnId: "desktop-turn" });
   assert.equal(calls.find((call) => call.kind === "desktop-start").request.expectedWorkspaceIdentity, "call-a:desktop-1");
+  const completeTask = "Zkontroluj složku C:\\work\\Jarvis a napiš její název. Nic neupravuj, neotvírej další chat a nepoužívej clipboard.\nZachovej všechny tyto podmínky.";
+  const followUp = "Upřesnění: ve stejné složce spočítej pouze soubory .md. Stále nic neměň.";
+  await submit("desktop-1", completeTask, "whole-task");
+  await submit("desktop-1", followUp, "follow-up");
+  const workRequests = calls.filter((call) => call.kind === "desktop-start").slice(-2).map((call) => call.request);
+  assert.deepEqual(workRequests.map((request) => request.sessionId), ["desktop-1", "desktop-1"]);
+  assert.deepEqual(workRequests.map((request) => request.input.text), [completeTask, followUp]);
   assert.deepEqual(await submit("native-pi:1"), { status: "started", turnId: "native-turn" });
   await assert.rejects(submit("native-pi:readonly"), { errorCode: "LIVE_WORK_BACKEND_UNSUPPORTED" });
   assert.deepEqual(await submit("remote:host:1"), { status: "started", turnId: "remote-turn" });
@@ -290,13 +297,13 @@ test("fresh live work catalog resolves Composer targets from all backends and re
         if (method === "projects.list") {
           return { projects: [{ path: "/work/demo" }, { path: "  " }, { path: "remote-project:office" }] };
         }
-        return { sessions: [{ id: "desktop-1", source: "desktop", title: "Desktop", projectId: "project-1", projectPath: "/work/demo" }] };
+        return { sessions: [{ id: "desktop-1", source: "desktop", title: "Desktop", projectId: "project-1", projectPath: "/work/demo", fastMode:true }] };
       },
     }),
     getSidecar: () => ({
       call: async (method, input) => {
         sidecarCalls.push({ method, input });
-        return { sessions: [{ id: "native-pi:1", title: "Native", capabilities: { canPrompt: true } }] };
+        return { sessions: [{ id: "native-pi:1", title: "Native", fastMode:false, capabilities: { canPrompt: true } }] };
       },
     }),
     getRemoteHosts: () => ({ listSessions: async () => [{ id: "remote-1", title: "Remote", hostLabel: "Office", workspaceLabel: "repo", mode: "agent" }] }),
@@ -308,6 +315,9 @@ test("fresh live work catalog resolves Composer targets from all backends and re
 
   assert.equal(requireLiveWorkSession(sessions, "desktop-1").source, "desktop");
   assert.equal(requireLiveWorkSession(sessions, "desktop-1").projectId, "project-1");
+  assert.equal(requireLiveWorkSession(sessions, "desktop-1").fastMode, true);
+  assert.equal(requireLiveWorkSession(sessions, "native-pi:1").fastMode, false);
+  assert.equal(requireLiveWorkSession(sessions, "remote-1").fastMode, undefined);
   assert.equal(requireLiveWorkSession(sessions, "native-pi:1").source, "pi-native");
   assert.equal(requireLiveWorkSession(sessions, "remote-1").source, "remote");
   const desktopSession = sessions.find((session) => session.id === "desktop-1");

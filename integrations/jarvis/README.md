@@ -41,8 +41,9 @@ Desktop skills. The Codex-specific Jarvis skills remain with the Codex fork.
    Codex Live binding and your voice under **Live voice**.
 2. Enable **Jarvis** and **Persistent queue at call start**. New/configured work
    sessions use GPT-6.1 Sol with Fast requested; new work defaults to medium effort.
-   Routine coordinators use low, the model's lowest supported effort. Generative
-   or complex work should use medium/high. Fast availability remains model- and
+   Fresh voice-created work sessions explicitly use low (Lightweight), the
+   model's lowest supported effort, with Fast requested. Independent text work
+   keeps its configured defaults. Fast availability remains model- and
    server-dependent; the preference does not guarantee response latency.
 3. **Start new conversation** creates an independent durable coordinator. **End
    conversation** cancels startup or ends its call through the normal media owner.
@@ -50,6 +51,14 @@ Desktop skills. The Codex-specific Jarvis skills remain with the Codex fork.
 4. Read the MCP operations in [mcp/README.md](mcp/README.md). A retried request ID
    is idempotent; a distinct toggle is on/off. The native Settings shortcut can be
    requested with `settings/openJarvis` without foreground takeover.
+
+The GPT Live model forwards the complete concrete task to its bound durable
+work chat, waits for its actual result and summarizes it. Follow-up clarification
+continues in that same chat unless the user explicitly switches targets. The
+fresh voice worker uses GPT-6.1 Sol low/Fast; this does not replace the selected
+Live voice or account. Bounded accepted work/result context from this call helps
+resolve follow-ups without reading unrelated saved history. Existing custom
+workspace instructions remain intact when the versioned worker role is added.
 
 The [Pi wake listener](wake/README.md) has its own guarded installer and retains
 the existing Startup registration. Installing the desktop alone does not switch

@@ -280,3 +280,15 @@ test("phone input resolves one exact capture device without touching default mic
  const stream={};assert.equal(await requestCallMicrophone({enumerateDevices:async()=>[device],getUserMedia:async constraints=>{captures++;assert.equal(constraints.audio.deviceId.exact,"cable-1");return stream;}},input),stream);
  assert.equal(captures,1);
 });
+
+test("phone device discovery waits for Main reservation and never captures after rejected prepare",async()=>{
+ const {requestCallMicrophone}=await import("../src/features/voice/live/call-input.ts");
+ const input={kind:"virtual-cable",label:"CABLE Output (VB-Audio Virtual Cable)"};
+ let grant;const reserved=new Promise(resolve=>{grant=resolve;});let enumerations=0,captures=0;
+ const stream={};const media={enumerateDevices:async()=>{enumerations++;return[{kind:"audioinput",label:input.label,deviceId:"owned-cable"}];},getUserMedia:async constraints=>{captures++;assert.equal(constraints.audio.deviceId.exact,"owned-cable");return stream;}};
+ const pending=requestCallMicrophone(media,input,reserved);await Promise.resolve();assert.equal(enumerations,0);assert.equal(captures,0);
+ grant();assert.equal(await pending,stream);assert.equal(enumerations,1);assert.equal(captures,1);
+ const refused=Object.assign(new Error("prepare refused"),{code:"LIVE_STALE_CALL"});
+ await assert.rejects(requestCallMicrophone(media,input,Promise.reject(refused)),error=>error===refused);
+ assert.equal(enumerations,1);assert.equal(captures,1);
+});

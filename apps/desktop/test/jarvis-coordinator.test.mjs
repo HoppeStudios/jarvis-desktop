@@ -20,7 +20,10 @@ test("coordinator is independent, preserves instructions and uses selected accou
   assert.equal(calls[1].args[1].permissionMode,"auto");assert.equal(settings.liveVoice.bindings[0].voice,"cove");
   const path=join(dataDir,"jarvis","workspace","AGENTS.md");assert.match(await readFile(path,"utf8"),/actual user reply/);
   await writeFile(path,"user customization");await createJarvisCoordinator(input);
-  assert.equal(await readFile(path,"utf8"),"user customization");
+  const preserved=await readFile(path,"utf8");assert.ok(preserved.startsWith("user customization\n\n"));
+  assert.match(preserved,/durable chat is its work agent/);assert.match(preserved,/low effort \(Lightweight\)/);
+  await Promise.all([createJarvisCoordinator(input),createJarvisCoordinator(input)]);
+  assert.equal(await readFile(path,"utf8"),preserved);
  }finally{await rm(dataDir,{recursive:true,force:true});}
 });
 

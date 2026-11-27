@@ -196,7 +196,7 @@ export class LiveCallController {
         }
       }).catch(() => undefined);
       micRequest = options.input
-        ? requestCallMicrophone(navigator.mediaDevices, options.input)
+        ? requestCallMicrophone(navigator.mediaDevices, options.input, prepareRequest)
         : requestMicrophone(this.microphoneDeviceId);
       resources.microphoneRequest = micRequest;
       void micRequest.then((stream) => {
@@ -265,7 +265,9 @@ export class LiveCallController {
       void micRequest?.then((stream) => stopStream(stream)).catch(() => undefined);
       try {
         if (resources.callId) {
-          await liveVoiceApi.end({ callId: resources.callId, reason: resources.abort.signal.aborted ? "user-cancelled-start" : "network-error" });
+          const code = errorCode(error);
+          await liveVoiceApi.end({ callId: resources.callId, reason: resources.abort.signal.aborted ? "user-cancelled-start" : "network-error",
+            ...(!resources.abort.signal.aborted && /^LIVE_[A-Z0-9_]{1,70}$/.test(code) ? { errorCode: code } : {}) });
         } else {
           await liveVoiceApi.end({ requestId, reason: "user-cancelled-start" });
           resources.mainTerminationSettled = true;

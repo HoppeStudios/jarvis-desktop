@@ -290,6 +290,11 @@ match is accepted; absent/ambiguous/hidden devices fail without a physical-mic
 fallback. Only that call uses the resolved device. Saved microphone settings,
 account/voice and other calls are unchanged.
 
+Virtual-cable enumeration waits for Main's microphone reservation to settle.
+Failure to reserve performs neither enumeration nor capture; the normal
+gesture-based default microphone path is unchanged. Startup failures retain
+only a bounded `LIVE_*` code in the native call record, never raw error text.
+
 An end with `expectedRequestId` requires the original start's `intentId`. It
 cancels only that pending start, or its verified completed call under the same
 renderer identity. Unknown, stale, different-owner and newer-call cases fail
