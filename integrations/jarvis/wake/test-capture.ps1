@@ -26,15 +26,10 @@ $settings.captureCommands=$true
 Complete-JarvisCapturedCommand $job @{ok=$false;error='fixture ASR failure'}
 Assert-Capture ($script:sent.Count -eq 1 -and $script:errors.Count -eq 1 -and -not $script:desired) 'Failed transcription must remain unsent and report the failure.'
 'PASS complete command, ordered cancellation, pause, active call, disabled capture and ASR failure'
-$script:desired=$false;$script:paused=$true;$script:captureSynth=$null
-Update-JarvisCapturedSpeech @{captureReports=@(@{text='fixture';requestId=[guid]::NewGuid().ToString()})}
-Assert-Capture (-not $script:captureSynth) 'Pause must defer Windows replies before creating output.'
-$script:paused=$false
-Update-JarvisCapturedSpeech @{call=@{phase='connected'};captureReports=@(@{text='fixture';requestId=[guid]::NewGuid().ToString()})}
-Assert-Capture (-not $script:captureSynth) 'A native call must defer Windows replies.'
-$script:captureSynth=[pscustomobject]@{State='Speaking';Cancelled=$false}
-$script:captureSynth|Add-Member -MemberType ScriptMethod -Name SpeakAsyncCancelAll -Value {$this.Cancelled=$true;$this.State='Ready'}
-$script:capturePrompt=$null;$script:captureSpeechReceipt=$null
-Update-JarvisCapturedSpeech @{call=@{phase='connected'}}
-Assert-Capture ($script:captureSynth.Cancelled -and $script:captureSpeechInterrupted) 'Observing a new native call must stop local playback and retain the report.'
-'PASS paused replies, native-call deferral and playback interruption'
+$script:captureSynth=$null
+foreach($phase in @('connected','ended')){
+ Update-JarvisCapturedSpeech @{call=@{phase=$phase};captureReports=@(@{text='fixture';requestId=[guid]::NewGuid().ToString()})}
+ Assert-Capture (-not $script:captureSynth) 'Work reports must never create a Windows speech synthesizer.'
+}
+Assert-Capture ((Stop-JarvisCapturedSpeech 'toggle') -eq 'toggle') 'Native wake toggle must retain its existing action.'
+'PASS Windows speech removed and native toggle unchanged'

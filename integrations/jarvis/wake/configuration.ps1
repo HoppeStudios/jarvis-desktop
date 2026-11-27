@@ -1,7 +1,7 @@
 function Read-JarvisSettings([string]$Path=(Join-Path $PSScriptRoot 'settings.json')) {
   $configuration=Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
   # capture-defaults:begin
-  foreach($entry in @{captureCommands=$false;captureTtsVoice='';captureLanguage='cs';captureWakeAliases=@('Hej Jarvis','Hej Jarvisi');captureEndPhrases=@('konec','finish');captureSilenceMilliseconds=900}.GetEnumerator()){
+  foreach($entry in @{captureCommands=$false;captureLanguage='cs';captureWakeAliases=@('Hej Jarvis','Hej Jarvisi');captureEndPhrases=@('konec','finish');captureSilenceMilliseconds=900}.GetEnumerator()){
     if($configuration.PSObject.Properties.Name -notcontains $entry.Key){$configuration|Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value}
   }
   # capture-defaults:end

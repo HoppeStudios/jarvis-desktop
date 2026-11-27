@@ -47,6 +47,7 @@ foreach($entry in @(@('wake.ps1','wake.ps1'),@('configuration.ps1','Pi/wake/conf
 }
 $settingsPath=Join-Path $root 'settings.json';$settingsBefore=[IO.File]::ReadAllText($settingsPath)
 $settings=Read-JarvisSettings $settingsPath;$settings.captureCommands=$true;Assert-JarvisSettings $settings
+if($settings.PSObject.Properties.Name -contains 'captureTtsVoice'){$settings.PSObject.Properties.Remove('captureTtsVoice')}
 $status=Read-JsonShared (Join-Path $root 'data/status.json')
 $owner=Get-CimInstance Win32_Process -Filter ('ProcessId='+$status.pid)
 if(-not(Test-JarvisListenerIdentity $owner (Join-Path $root 'wake.ps1'))){throw 'Selected listener identity is unconfirmed.'}

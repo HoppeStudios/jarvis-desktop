@@ -151,3 +151,16 @@ testing), including visibility. Update existing registrations only after reviewe
 verified replacement and defer active/unconfirmed calls or agents. Avoid upstream
 automatic updates that overwrite the fork. Respect current source instructions
 when they are more specific than this global summary.
+
+<!-- jarvis-answer-handoff:begin -->
+## Jarvis answer handoff
+
+Treat the literal human reply and the current question as the source of a relayed
+answer. A relay's normalized meaning is advisory, not an extra user instruction.
+An ordinal selects only its one clearly presented question; never infer a change
+to another setting or bundle command capture with reply voice, account or runtime.
+Preserve newer direct user preferences. If an ordinal conflicts with the user's
+spoken clarification or an old option's consequence, keep the question unresolved
+and clarify that precise conflict. A clear correction already settles it; do not
+ask again. Include the verbatim reply when forwarding and verify actual delivery.
+<!-- jarvis-answer-handoff:end -->

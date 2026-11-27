@@ -49,8 +49,9 @@ the GUI and its native settings rather than the old CLI/settings entry points.
 Optional [complete spoken commands](../../../docs/spec/06-delivery/jarvis-spoken-command-capture.md)
 retain the addressed utterance and transcribe it locally after the wake. They
 submit actual text through the installed shared adapter to a verified Codex-owned
-chat. Windows reads its completed reply after other calls end; no native call is
-opened for a captured command. The saved Pi Live voice/account remain unchanged.
+chat. The selected native Live voice/account remain unchanged; Windows reply
+speech is not used. Automatic native reading of externally submitted task results
+needs an application contract that is not currently exposed.
 Enable through the reviewed `capture-install.ps1`
 with a locally prepared, hash-pinned runtime config; no account data belongs in
 that source repository. Tray settings then expose capture, language, silence,

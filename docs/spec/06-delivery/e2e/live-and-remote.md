@@ -3,26 +3,26 @@
 > Part of the [E2E test plan](../04-e2e-test-plan.md). Live Voice, Live Work, speech, and Remote Agent Control.
 > Scenario template, gates, and traceability live in the plan.
 
-## E2E-1176: Complete addressed command to text Codex and Windows reply
+## E2E-1176: Complete addressed command with native voice preservation
 
 - **Status:** Draft; deterministic and installed file/text slices verified,
   natural Czech microphone acceptance and human listening remain manual.
 - **Acceptance:** C / E / Security / Quality. **Milestone:** M6+.
 - **Preconditions:** Selected Pi Jarvis runtime, enabled shared Codex owner,
-  pinned local multilingual ASR and Windows reply voice, idle/unpaused listener.
+  pinned local multilingual ASR and the selected native voice, idle/unpaused listener.
 - **Steps:** Speak the wake and complete Czech request in one utterance. Verify
   the onset/tail and terminal marker, actual Codex-owned text admission and exact
-  turn result. Keep another native call active while a report finishes, end that
-  call and verify one Windows reply. Repeat with rapid toggle, Pause, wrong source,
+  turn result. Verify no Windows speech is created and the native voice/account
+  remain unchanged. Repeat with rapid toggle, Pause, wrong source,
   stale intent, missing native ASR dependency and uncertain admission.
 - **Expected:** Full actual text, no native call start for captured work, no
   unrelated draft/work mutation, no duplicate dispatch or fabricated receipt.
-  Native calls defer speech; ending speech does not cancel admitted work. Startup,
+  No local reply voice is substituted. Startup,
   paused state, shared queue and selected native account/voice are preserved.
 - **Automation/evidence:** `test-capture.mjs`, `test-capture.ps1`, Python worker
   tests, real SAPI retained-audio fixture, copied-runtime native loading, installed
   ASR smoke test, native shared-Codex `JARVIS_CAPTURE_OK` receipt/result and
-  file-rendered Windows speech. See [capture spec](../jarvis-spoken-command-capture.md).
+  native voice preservation and absence of Windows reply speech. See [capture spec](../jarvis-spoken-command-capture.md).
 - **Limits:** File fixtures are not acoustic/user acceptance. No unsolicited Live
   call, real speaker playback or foreground takeover is part of those checks.
 

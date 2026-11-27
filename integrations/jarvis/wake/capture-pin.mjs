@@ -26,7 +26,7 @@ async function rejectLinks(root) {
 }
 const modules=path.join(target,'node_modules');await mkdir(modules,{recursive:true});
 for(const [name,source] of [['transcribe-cpp',pkg],['koffi',koffi],[nativeName,native]]) {
-  await rejectLinks(source);await cp(source,path.join(modules,name),{recursive:true,force:true});
+  await rejectLinks(source);if(path.resolve(source)!==path.resolve(path.join(modules,name)))await cp(source,path.join(modules,name),{recursive:true,force:true});
 }
 await mkdir(path.join(target,'models'),{recursive:true});
 const model=path.join(target,'models',path.basename(config.model));

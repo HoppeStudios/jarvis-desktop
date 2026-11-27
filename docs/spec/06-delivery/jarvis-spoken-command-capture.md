@@ -4,9 +4,10 @@ The explicit user choice is to capture and submit the complete command following
 the wake phrase. The selected runtime remains Pi Desktop. This optional local
 feature does not replace the Codex Mini fork, the shared Inbox, credentials,
 selected Live binding/voice, external ending commands or application permissions.
-The user's clarified choice is text Codex with a local Windows reply voice, rather
-than starting a native call for captured commands. Bare wake retains its separate
-existing Pi Live toggle behavior.
+The user's direct correction preserves the selected native Codex Live voice.
+Windows reply synthesis is removed. Capturing the full command and selecting its
+reply voice are separate decisions; the former does not authorize changing the
+latter. Bare wake retains its existing Pi Live toggle behavior.
 
 The SAPI wake recognizer loads a lower-priority wake-plus-wildcard grammar. Its
 `RecognizedAudio` retains the complete addressed utterance, including speech before
@@ -44,17 +45,20 @@ as a Codex thread ID. No credential/capability copy, direct database mutation or
 independent CLI execution is used. Account/model and permission handling remain
 with the reviewed shared owner. An accepted real turn ID proves admission only.
 
-Polling reports only a complete assistant message from that exact admitted turn,
-after native running state is false. Windows Speech reads that reply, one at a time,
-waiting while a native call is active/unknown or recognition is paused. Its voice
-is separately configurable; the saved Pi Live voice is unchanged. A local playback
-attempt is not an Inbox acknowledgement or proof of task success. Interrupted
-playback does not erase the shared queue. External ending stops speech without
-cancelling the admitted work. A manual end defers this local report for the saved
-invitation cooldown; Pause defers it until resumed. Observing another native call
-cancels current local playback and leaves the report due after that call. Polling
-has a two-second observation delay; it is not an atomic cross-application audio
-reservation. Queue registration/delivery remains independent.
+Text admission and completion can be inspected through the native shared owner.
+The helper never creates a Windows speech synthesizer or substitutes a local
+voice. The selected native Live voice/account and existing queue workflow remain
+unchanged. A native call opened with an existing work session has an empty call
+operation ledger; it cannot automatically speak a task submitted beforehand via
+external agent/prompt. The current reviewed control plane exposes no general
+native speak-result or append-user-text operation. Automatic native reading of
+these captured tasks therefore remains unimplemented until the application adds
+an explicit task-adoption/result-delivery contract. Navigation or opening a call
+is not reported as successful native result speech.
+
+Answer handoff preserves the literal reply separately from any normalization,
+scopes ordinals to the current question and keeps contradictory clarifications
+unresolved. Older bundled options cannot override newer direct voice preferences.
 
 Pause/Disable, ending, a newer intent, disabling capture or another active call
 cancel pending transcription. Bare wake remains an on/off toggle; a second wake
@@ -81,7 +85,7 @@ identity are verified after restart. No desktop restart or rollback install occu
 - Installer `-ValidateOnly`, then reviewed idle installation and read-only native
   settings/call/listener/Startup verification.
 - Human acceptance: speak a Czech full command immediately after the wake; confirm
-  its exact text/accepted turn in the actual Codex-owned session, Windows voice, ending,
+  its exact text/accepted turn in the actual Codex-owned session, Windows voice preservation, ending,
   rapid repeated wake, Pause and active-call protection. Do not start an unsolicited
   live call merely to claim this gate passed. File-rendered Windows speech is not
   a human listening test.

@@ -47,47 +47,11 @@ function Complete-JarvisCapturedCommand($job,$response) {
  $null=Start-Worker $request $null $false;$script:lastCaptureOutcome='dispatching'
 }
 
-function Test-JarvisCapturedSpeechActive {
- return [bool]($script:captureSynth -and ($script:captureSynth.State -eq 'Speaking' -or ($script:capturePrompt -and -not $script:capturePrompt.IsCompleted)))
-}
-function Stop-JarvisCapturedSpeech([string]$action) {
- if((Test-JarvisCapturedSpeechActive) -and $action -in @('toggle','wake','end','disable','new-chat')){
-  $script:captureSpeechInterrupted=$true;$script:captureSynth.SpeakAsyncCancelAll();$script:captureSpeechFinished=[datetime]::UtcNow
-  if($script:captureSpeechReceipt){Write-JsonAtomic $script:captureSpeechReceipt @{state='interrupted';deferredUntil=$(if($action -in @('toggle','end')){[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()+[double]$settings.invitationCooldownMinutes*60000}else{0})}}
-  if($action -eq 'toggle'){return 'end'}
- }
- return $action
-}
-function Update-JarvisCapturedSpeech($packet) {
- if($script:captureSpeechReceipt -and $script:capturePrompt -and $script:capturePrompt.IsCompleted){
-  if(-not $script:captureSpeechInterrupted){Write-JsonAtomic $script:captureSpeechReceipt @{state='played';finishedAt=[datetime]::UtcNow.ToString('o')}}
-  $script:captureSpeechReceipt=$null
- }
- if(-not $settings.captureCommands -or $script:paused -or $packet.pendingRequestId -or ($packet.call -and $packet.call.phase -notin @('ended','failed'))){
-  if(Test-JarvisCapturedSpeechActive){$script:captureSpeechInterrupted=$true;$script:captureSynth.SpeakAsyncCancelAll();$script:captureSpeechFinished=[datetime]::UtcNow}
-  return
- }
- if($script:captureSpeechWasActive -and -not(Test-JarvisCapturedSpeechActive)){$script:captureSpeechFinished=[datetime]::UtcNow}
- $script:captureSpeechWasActive=Test-JarvisCapturedSpeechActive
- if($script:desired -or (Test-JarvisCapturedSpeechActive) -or @($jobs|Where-Object {$_.request.operation -in @('voice','captured-task','transcribe')}).Count){return}
- foreach($report in @($packet.captureReports)){
-  if(-not $report -or [string]::IsNullOrWhiteSpace($report.text)){continue}
-  $id=[guid]::Parse($report.requestId).ToString()
-  $receipt=Join-Path $appRoot ('data/captured-tasks/'+$id+'.announced.json')
-  if(Test-Path -LiteralPath $receipt){$spoken=Read-JsonShared $receipt;if($spoken.state -eq 'played' -or $spoken.deferredUntil -gt [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()){continue}}
-  if(-not $script:captureSynth){$script:captureSynth=[System.Speech.Synthesis.SpeechSynthesizer]::new()}
-  if($settings.captureTtsVoice){$script:captureSynth.SelectVoice($settings.captureTtsVoice)}
-  $script:captureSynth.Rate=[int]$settings.notificationRate;$script:captureSynth.Volume=[int]$settings.notificationVolume
-  $text=Remove-JarvisWakeFromSpeech ([string]$report.text)
-  $text=[regex]::Replace($text,'\[([^\]]+)\]\([^\)]+\)','$1');$text=$text.Replace('`','').Replace('**','')
-  if($text.Length -gt $settings.announcementMaxChars){$text=$text.Substring(0,$settings.announcementMaxChars)+' … Celá odpověď je v textovém chatu.'}
-  $script:capturePrompt=$script:captureSynth.SpeakAsync($text)
-  # A local playback state is never review/acknowledgement of Inbox work.
-  $script:captureSpeechInterrupted=$false;$script:captureSpeechReceipt=$receipt
-  Write-JsonAtomic $receipt @{state='attempting';attemptedAt=[datetime]::UtcNow.ToString('o');taskSessionId=$report.taskSessionId}
-  $script:captureSpeechWasActive=$true;$script:desired=$true;return
- }
-}
+# The user's selected native voice owns replies. Never synthesize work reports
+# through Windows speech. Keep these adapters for existing listener wiring.
+function Test-JarvisCapturedSpeechActive { return $false }
+function Stop-JarvisCapturedSpeech([string]$action) { return $action }
+function Update-JarvisCapturedSpeech($packet) { return }
 
 function Update-JarvisCaptureWorker($job,[datetime]$now) {
  if($job.process.HasExited){return}
