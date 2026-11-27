@@ -27,8 +27,10 @@ def main():
             result=client.invoke('session/find',[query])
         else:
             result=client.invoke('session/open',[args.session_id]);session=result.get('session') or {}
-            if session.get('id')!=args.session_id:raise RuntimeError('PI_OPEN_UNCONFIRMED')
-            result={'sessionId':session['id'],'title':session.get('title'),'nativeOpenAccepted':True,'selectionVerified':False,'navigationOnly':True}
+            owner=session.get('nativeOwner') or {}
+            canonical_receipt=(result.get('requestedSessionId')==args.session_id and owner.get('hostKey')=='codex-shared' and owner.get('viewId')==session.get('id'))
+            if not session.get('id') or session.get('id')!=args.session_id and not canonical_receipt:raise RuntimeError('PI_OPEN_UNCONFIRMED')
+            result={'requestedSessionId':args.session_id,'sessionId':session['id'],'title':session.get('title'),'nativeOpenAccepted':True,'selectionVerified':False,'navigationOnly':True}
         print(json.dumps(result,ensure_ascii=False))
     finally:client.close()
 

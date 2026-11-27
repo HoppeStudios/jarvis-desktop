@@ -1,6 +1,6 @@
 import { parseRemoteSessionId } from "./remote/backend-router";
 type Query = { query: string; includeArchived?: boolean; project?: string; limit?: number; owner?: "codex" };
-type Session = { id: string; title: string; projectPath?: string; source?: string; remoteHostKey?: string; archived: boolean; score: number; exact: boolean };
+type Session = { id: string; title: string; projectPath?: string; source?: string; remoteHostKey?: string; nativeOwner?: {hostKey:string;sessionId:string;viewId:string}; archived: boolean; score: number; exact: boolean };
 const invalid = () => Object.assign(new Error("Invalid session find query"), { code: "INVALID_PARAMS" });
 const normalize = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
 
@@ -54,13 +54,28 @@ export function findSessionMetadata(raw: unknown, query: Query, preferences: unk
   const meta = (preferences as any)?.sessionMeta ?? {};
   const name = normalize(query.query), project = query.project ? normalize(query.project) : undefined;
   const seen = new Set<string>();
+  const owners = new Set<string>();
+  const byId = new Map<string, any>(inventory.sessions.filter((item: any) => typeof item?.id === "string").map((item: any): [string, any] => [item.id, item]));
   const candidates: Session[] = [];
   for (const entry of inventory.sessions) {
     const item = entry as any;
     if (typeof item?.id !== "string" || !item.id || typeof item.title !== "string" || seen.has(item.id)) continue;
     seen.add(item.id);
-    // Original native owner IDs are verified namespaces, not title-based deduplication.
-    if (query.owner === "codex" && (item.source !== "codex" || parseRemoteSessionId(item.id)?.hostKey !== "codex-shared")) continue;
+    // Only the bridge's verified owner reference can canonicalize linked views.
+    // Equal titles/project paths never establish identity for an unbound import.
+    const rawOwner = item.source === "codex" && item.remoteHostKey === "codex-shared" &&
+      item.nativeOwner?.hostKey === "codex-shared" && typeof item.nativeOwner.sessionId === "string" &&
+      typeof item.nativeOwner.viewId === "string" ? item.nativeOwner : undefined;
+    let owner = rawOwner ? { hostKey: "codex-shared", sessionId: rawOwner.sessionId as string, viewId: rawOwner.viewId as string } : undefined;
+    if (owner) {
+      const canonical = byId.get(owner.viewId);
+      if (canonical?.nativeOwner?.sessionId !== owner.sessionId || canonical?.nativeOwner?.hostKey !== owner.hostKey) owner = undefined;
+    }
+    const nativeId = parseRemoteSessionId(item.id);
+    const nativeCodex = item.source === "codex" && (nativeId?.hostKey === "codex-shared" || Boolean(owner));
+    if (query.owner === "codex" && !nativeCodex) continue;
+    const ownerKey = nativeCodex ? owner?.sessionId ?? nativeId!.hostSessionId : undefined;
+    if (ownerKey && owners.has(ownerKey)) continue;
     const archived = item.archived === true || meta[item.id]?.archived === true;
     if (archived && !query.includeArchived) continue;
     const projectPath = typeof item.projectPath === "string" ? item.projectPath : undefined;
@@ -69,9 +84,11 @@ export function findSessionMetadata(raw: unknown, query: Query, preferences: unk
     const sameTerms = name.split(" ").sort().join(" ") === title.split(" ").sort().join(" ");
     const confidence = sameTerms ? 1 : score(name, title);
     if (confidence < 0.78) continue;
+    if (ownerKey) owners.add(ownerKey);
     candidates.push({ id: item.id, title: item.title.slice(0, 300), projectPath,
       source: typeof item.source === "string" ? item.source : undefined,
       remoteHostKey: typeof item.remoteHostKey === "string" ? item.remoteHostKey : undefined,
+      ...(owner ? { nativeOwner: owner } : {}),
       archived, score: confidence, exact: sameTerms });
   }
   candidates.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));

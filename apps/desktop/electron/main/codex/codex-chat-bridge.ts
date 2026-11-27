@@ -159,6 +159,7 @@ export class CodexChatBridge implements RemoteBackend {
     const aliases: SessionSummary[] = [...this.aliases.entries()].map(([id, alias]) => ({
       ...(alias.threadId && this.threads.has(alias.threadId) ? this.summary(this.threads.get(alias.threadId)!) : alias.session),
       id, source: "codex" as const, remoteHostKey: HOST, remoteHostLabel: "Codex",
+      nativeOwner: alias.threadId ? { hostKey: HOST, sessionId: alias.threadId, viewId: this.outward(alias.threadId) } : undefined,
       capabilities: { canPrompt: true, canStop: true, canRefresh: true, canConfigureModel: false,
         canAttach: false, canSteer: true, canEditMessages: false, canUseLocalTools: false,
         canUseTerminal: false, canReadWorkspace: false },
@@ -176,6 +177,7 @@ export class CodexChatBridge implements RemoteBackend {
     const pi = [...this.aliases.values()].find(value => value.threadId === thread.id)?.session;
     return {
       id: makeRemoteSessionId(HOST, thread.id), source: "codex", remoteHostKey: HOST, projectPath: pi?.projectPath ?? localPath,
+      nativeOwner: { hostKey: HOST, sessionId: thread.id, viewId: this.outward(thread.id) },
       remoteHostLabel: "Codex", remoteWorkspaceLabel: thread.cwd,
       title: thread.name || thread.preview || "Codex chat", messageCount: this.messages.get(thread.id)?.size ?? 0,
       mode: "agent", thinkingLevel: "omit", permissionMode: "inherit",
@@ -539,7 +541,12 @@ export class CodexChatBridge implements RemoteBackend {
         pendingToolConfirmations: [...this.pending.values()].filter(value => value.params.threadId === threadId).length } };
     }
     if (channel === IPC.invoke.agentQueueList) return { entries: [] };
-    if (channel === IPC.invoke.sessionOpen) { await this.subscribe(threadId); return { ok: true }; }
+    if (channel === IPC.invoke.sessionOpen) {
+      // The gateway selects the actual returned view. A bare OK never reaches
+      // mcpControlRendererEvent and therefore cannot navigate the renderer.
+      const detail = await this.invoke(IPC.invoke.sessionGet, [{ sessionId: id, messageLimit: 1 }]) as { session: SessionDetail };
+      return { ...detail, requestedSessionId: id };
+    }
     if (channel === IPC.invoke.agentStop || channel === IPC.invoke.agentAbort) {
       const current = this.running.get(threadId);
       const turnId = input.turnId && input.turnId !== current ? undefined : current;

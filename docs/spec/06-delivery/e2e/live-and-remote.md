@@ -18,6 +18,9 @@
   Repeat with original Codex and imported Pi history sharing a title; explicit
   owner=codex selects only the native original, while the unscoped lookup keeps
   distinct exact-name records ambiguous.
+  Bind a Pi view to a verified native owner and confirm it stays discoverable,
+  with duplicate proven views collapsed but unbound snapshots retained. Open an
+  actual target and observe its selected UI: a bare-OK receipt is not navigation.
 - **Expected:** One metadata inventory call, bounded candidates and explicit
   ambiguity; no transcripts, duplicate chat, message, call mutation or false live
   status. Explicit startup disable wins. Existing authentication, profiles, account,

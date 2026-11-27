@@ -15,8 +15,10 @@ the first candidate merely because it is ranked first. Search alone does not ope
 a chat, create work or move voice.
 
 For an explicitly requested original Codex chat, set `owner: "codex"`. This uses
-actual native owner namespaces and avoids treating imported Pi history as the
-original. Without that scope, identical imported/native titles remain ambiguous;
+actual native owner namespaces or the bridge's verified bound-view references.
+Unbound imported history is not treated as the original. Retain the actual returned
+Pi view ID even when the original owner has a different native thread ID.
+Without that scope, identical unbound imported/native titles remain ambiguous;
 never infer identity or deduplicate them merely from title/project similarity.
 
 If that operation is absent, read Pi-Desktop `session/list` and match meaning/title approximately,

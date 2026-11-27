@@ -15,9 +15,20 @@ Ambiguous matches are explicit. A caller opens a chosen ID through the existing
 session/open action, preserving its normal owner and renderer synchronization.
 An explicit Codex owner scope filters through the existing native ID parser;
 imported Pi history is not assumed to be the original based on a matching title
-or project path. Reordered complete title terms are equivalent. Extra unrelated
+or project path. A bound Pi view carries the bridge's verified `nativeOwner`
+reference, including its canonical event/navigation view ID. Search can recognize
+and deduplicate that actual owner without hiding unbound snapshot histories or
+losing archived/project-filtered views. Reordered complete title terms are equivalent. Extra unrelated
 title words are penalized for approximate matches; genuine alternatives remain
 ambiguous. No title-based history merging or deletion occurs.
+
+Native Codex session/open must return a normal bounded SessionDetail and explicit
+requested identity, not a bare OK. The ordinary gateway then emits selection for
+the actual returned canonical view. This repairs the observed missing renderer
+navigation while retaining native history ownership. Open reads one latest item;
+search still reads metadata only. CLI receipts retain both identities and never
+substitute a native thread ID for a Pi view ID. A dispatch receipt still does not
+prove observed UI selection or voice transfer.
 
 The concurrent installed persistent-control fix (04bc02f18) is preserved, including
 its startup policy, diagnostics and tests; this integration reuses that policy
