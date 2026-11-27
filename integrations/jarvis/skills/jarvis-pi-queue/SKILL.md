@@ -5,6 +5,26 @@ description: Resume the persistent Jarvis briefing in Pi Desktop voice, review p
 
 # Pi persistent queue
 
+## Explicit queue clearing
+
+An explicit request to clear/remove the queue means dismiss its actual pending
+items, not merely disable invitations. Snapshot every pending page before editing
+(including deferred entries), then use current-revision `edit_item` with
+`state: "dismissed"`. Preserve closed history, answers and delivery receipts;
+never label cancelled work completed. On revision conflicts, reread and preserve
+newer changes. Verify the snapshot items are closed and report any failures.
+Results arriving after the snapshot are new items, not a failed clear; do not
+keep draining other chats indefinitely. A saved cursor pointing to a closed item
+is obsolete and must not be resumed. Treat the cleanup receipt as coordinator
+housekeeping, not another pending briefing report.
+
+Clearing does not disable future capture or change calls, wake recognition or
+notification settings. Conversely, pausing/disabling notifications does not
+clear items. Apply both only when requested, and preserve newer explicit requests
+to stop calling. Never turn voice back on as part of cleanup verification.
+
+## Briefing and answer delivery
+
 Read Jarvis-Inbox `review_queue` immediately. A short yes/ano/what answers presence,
 not an unresolved question. Resume the due saved cursor, otherwise the next due
 pending item. Skip answered questions. Brief one item in the user's language using
