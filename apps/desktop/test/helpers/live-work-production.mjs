@@ -127,7 +127,7 @@ export async function createProductionWorkHarness(t, server, options = {}) {
       assert.ok(requestOptions.signal instanceof AbortSignal);
       assert.equal(_thinking, "low");
       options.onClassifierInput?.(context);
-      return { text: JSON.stringify({
+      return { text: JSON.stringify(options.intent ?? {
         kind: "new-task",
         relationToActive: String(context.messages[0]?.content).includes("independent follow-up") ? "independent" : "unspecified",
         explicitRepeat: false,

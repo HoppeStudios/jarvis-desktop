@@ -1,5 +1,17 @@
 # Live Voice v1
 
+## Workspace chat creation through the coordinator
+
+With a bound work Agent, an explicit new-chat request (including a `create-session`
+classifier result) is forwarded verbatim through normal independent-task
+admission. Busy work queues it without interruption; duplicate provider receipts
+do not submit it twice. The coordinator Agent resolves the actual registered
+project path, creates through native `session/create` and verifies persisted
+identity/project before reporting success. Destination ambiguity remains a real
+question. Creation alone neither opens the chat, submits work there nor changes
+the existing Live binding/account/voice. Without a bound Agent, Live retains the
+registered-project selection panel flow.
+
 ## Work classifier startup
 
 Live work intent classification resolves only the selected account/model binding

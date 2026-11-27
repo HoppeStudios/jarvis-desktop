@@ -629,13 +629,35 @@ describe("LiveWorkCoordinator", () => {
     expect(subject.calls.some((call) => call.startsWith("submit:"))).toBe(false);
   });
 
-  it("creates only a project choice and keeps the active call's bound session unchanged", async () => {
-    const subject = build({ intent: { kind: "create-session" } });
+  it("keeps project choices for unbound Live without inventing a work target", async () => {
+    const subject = build({ intent: { kind: "create-session" }, hasWorkTarget: false });
     await subject.coordinator.receiveCandidate({ ...candidate, providerRequestId: "provider-create" }, async () => ({ status: "sent", deliveryId: "receipt-create" }));
     expect(subject.coordinator.listOperations("call-1")[0]).toMatchObject({
       workSessionId: "session-a",
       selections: [{ selectionRef: "project-ref", kind: "project", action: "create", label: "Demo" }],
     });
     expect(subject.calls.some((call) => call.startsWith("submit:"))).toBe(false);
+  });
+
+  it("delegates a bound chat creation request verbatim once without changing its target", async () => {
+    const subject = build({ intent: { kind: "create-session", title: "New task" } });
+    const request = { ...candidate, instruction: "Vytvoř nový chat ve workspace Omega, název Výzkum. Neotevírej ho." };
+    const receipt = async () => ({ status: "sent" as const, deliveryId: "create-receipt" });
+    await subject.coordinator.receiveCandidate(request, receipt);
+    await subject.coordinator.receiveCandidate(request, receipt);
+    expect(subject.calls.filter(call => call.startsWith("submit:"))).toHaveLength(1);
+    expect(subject.calls).toContain(`submit:${request.instruction}:${subject.coordinator.listOperations("call-1")[0]!.userMessageId}`);
+    expect(subject.coordinator.listOperations("call-1")[0]).toMatchObject({
+      workSessionId: "session-a", admission: "accepted", execution: "running",
+      intent: { kind: "new-task", relationToActive: "independent" },
+    });
+  });
+
+  it("queues creation behind busy bound work instead of interrupting it", async () => {
+    const subject = build({ intent: { kind: "create-session" }, snapshot: { state: "running", activeTurnId: "existing-turn" } });
+    await subject.coordinator.receiveCandidate(candidate, async () => ({ status: "sent", deliveryId: "create-queued" }));
+    expect(subject.calls.filter(call => call.startsWith("queue:"))).toHaveLength(1);
+    expect(subject.calls.some(call => /^(submit|steer|stop):/.test(call))).toBe(false);
+    expect(subject.coordinator.listOperations("call-1")[0]).toMatchObject({ workSessionId: "session-a", execution: "queued" });
   });
 });
